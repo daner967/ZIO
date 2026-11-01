@@ -6,8 +6,16 @@ plugins {
 android {
     namespace = "com.bajar.app"
     compileSdk = 35
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
     defaultConfig {
-        applicationId = "com.bajar.app"
+        applicationId = "com.zio.app"
         minSdk = 29
         targetSdk = 34
         versionCode = 1

@@ -18,9 +18,9 @@ jobs:
         with:
           gradle-version: 8.9
       - run: gradle assembleDebug --no-daemon
-      - run: mv app/build/outputs/apk/debug/app-debug.apk Bajar.apk
+      - run: mv app/build/outputs/apk/debug/app-debug.apk ZIO.apk
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: Bajar ${{ github.run_number }}
-          files: Bajar.apk
+          name: ZIO ${{ github.run_number }}
+          files: ZIO.apk

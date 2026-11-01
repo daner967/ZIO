@@ -170,9 +170,9 @@ class MainActivity : Activity() {
     // Audio -> Music/Bajar, video -> Movies/Bajar, ZIP -> Download/Bajar
     private fun save(f: File, mime: String): String {
         val (collection, dir) = when {
-            mime.startsWith("audio") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/Bajar"
-            mime.startsWith("video") -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/Bajar"
-            else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI to "Download/Bajar"
+            mime.startsWith("audio") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/ZIO"
+            mime.startsWith("video") -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/ZIO"
+            else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI to "Download/ZIO"
         }
         val v = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
