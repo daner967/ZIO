@@ -1,0 +1,215 @@
+package com.bajar.app
+
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.ClipboardManager
+import android.content.ContentValues
+import android.content.Intent
+import android.os.Bundle
+import android.provider.MediaStore
+import android.view.WindowManager
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import com.yausername.ffmpeg.FFmpeg
+import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLRequest
+import org.json.JSONObject
+import java.io.File
+import java.util.concurrent.Executors
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
+class MainActivity : Activity() {
+    private lateinit var web: WebView
+    private val pool = Executors.newSingleThreadExecutor()
+    @Volatile private var ready = false
+    @Volatile private var cancelled = false
+    @Volatile private var version = ""
+    @Volatile private var shared = ""
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(b: Bundle?) {
+        super.onCreate(b)
+        web = WebView(this).apply {
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            addJavascriptInterface(Bridge(), "Android")
+            loadUrl("file:///android_asset/index.html")
+        }
+        setContentView(web)
+        takeShare(intent)
+        pool.execute { startEngine() }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeShare(intent)
+    }
+
+    // Enlaces compartidos desde la app de YouTube ("Compartir" > Bajar)
+    private fun takeShare(i: Intent?) {
+        if (i == null || i.action != Intent.ACTION_SEND) return
+        val t = i.getStringExtra(Intent.EXTRA_TEXT) ?: return
+        shared = Regex("https?://\\S+").find(t)?.value ?: return
+        if (::web.isInitialized) web.post { web.evaluateJavascript("if(window.takeShared)takeShared()", null) }
+    }
+
+    private fun emit(t: String, m: String = "", p: Float = 0f, n: String = "") {
+        val o = JSONObject().put("t", t).put("m", m).put("p", p.toDouble()).put("n", n)
+        runOnUiThread { web.evaluateJavascript("onEvent($o)", null) }
+    }
+
+    private fun startEngine() {
+        try {
+            YoutubeDL.getInstance().init(application)
+            FFmpeg.getInstance().init(application)
+            ready = true
+            version = YoutubeDL.getInstance().version(application) ?: ""
+            emit("ready", version)
+        } catch (e: Exception) {
+            emit("error", "No se pudo iniciar el motor: ${e.message}")
+            return
+        }
+        refresh(false)
+    }
+
+    // yt-dlp se rompe seguido cuando YouTube cambia: se actualiza al abrir la app
+    private fun refresh(show: Boolean) {
+        try {
+            YoutubeDL.getInstance().updateYoutubeDL(application, YoutubeDL.UpdateChannel.STABLE)
+            version = YoutubeDL.getInstance().version(application) ?: version
+            emit("ready", version)
+            if (show) emit("info", "Motor actualizado")
+        } catch (e: Exception) {
+            if (show) emit("error", "No se pudo actualizar: ${e.message}")
+        }
+    }
+
+    private fun download(url: String, mode: String) {
+        if (cancelled) { emit("cancelled"); return }
+        if (!ready) { emit("error", "El motor sigue iniciando. Inténtalo en unos segundos."); return }
+        runOnUiThread { window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        val work = File(cacheDir, "w${System.currentTimeMillis()}").apply { mkdirs() }
+        try {
+            val r = YoutubeDLRequest(url)
+            r.addOption("--windows-filenames")
+            r.addOption("--no-mtime")
+            val dir = work.absolutePath
+            when (mode) {
+                "video" -> {
+                    r.addOption("--no-playlist")
+                    r.addOption("-f", "bv*+ba/b")
+                    r.addOption("-S", "res:1080,ext")
+                    r.addOption("--merge-output-format", "mp4")
+                    r.addOption("-o", "$dir/%(title).100s.%(ext)s")
+                }
+                "audio" -> {
+                    r.addOption("--no-playlist")
+                    r.addOption("-x")
+                    r.addOption("--audio-format", "mp3")
+                    r.addOption("--audio-quality", "0")
+                    r.addOption("-o", "$dir/%(title).100s.%(ext)s")
+                }
+                else -> { // lista: solo audio, máximo 25, todo en un ZIP
+                    r.addOption("--yes-playlist")
+                    r.addOption("--playlist-end", "25")
+                    r.addOption("--ignore-errors")
+                    r.addOption("-x")
+                    r.addOption("--audio-format", "mp3")
+                    r.addOption("--audio-quality", "0")
+                    r.addOption("-o", "$dir/%(playlist_title).80s/%(playlist_index)02d - %(title).100s.%(ext)s")
+                }
+            }
+
+            var err: String? = null
+            try {
+                YoutubeDL.getInstance().execute(r, "dl") { p, _, line -> emit("progress", "$line", p) }
+            } catch (e: Exception) {
+                err = e.message
+            }
+            if (cancelled) { emit("cancelled"); return }
+
+            val ok = setOf("mp3", "mp4", "mkv", "webm", "m4a")
+            val files = work.walkTopDown()
+                .filter { it.isFile && it.extension.lowercase() in ok }
+                .sortedBy { it.name }.toList()
+            if (files.isEmpty()) { emit("error", nice(err)); return }
+
+            if (mode == "list") {
+                val title = work.listFiles { f -> f.isDirectory }?.firstOrNull()?.name ?: "playlist"
+                val zip = File(work, "$title.zip")
+                ZipOutputStream(zip.outputStream().buffered()).use { z ->
+                    z.setLevel(0)
+                    files.forEach { f ->
+                        z.putNextEntry(ZipEntry("$title/${f.name}"))
+                        f.inputStream().use { it.copyTo(z) }
+                        z.closeEntry()
+                    }
+                }
+                val extra = if (err != null) ", algunas fallaron" else ""
+                emit("done", save(zip, "application/zip"), n = "${zip.name} (${files.size} canciones$extra)")
+            } else {
+                val f = files.first()
+                val mime = when (f.extension.lowercase()) {
+                    "mp3" -> "audio/mpeg"
+                    "m4a" -> "audio/mp4"
+                    "mp4" -> "video/mp4"
+                    "mkv" -> "video/x-matroska"
+                    else -> "video/webm"
+                }
+                emit("done", save(f, mime), n = f.name)
+            }
+        } catch (e: Exception) {
+            emit("error", nice(e.message))
+        } finally {
+            work.deleteRecursively()
+            runOnUiThread { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        }
+    }
+
+    // Audio -> Music/Bajar, video -> Movies/Bajar, ZIP -> Download/Bajar
+    private fun save(f: File, mime: String): String {
+        val (collection, dir) = when {
+            mime.startsWith("audio") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/Bajar"
+            mime.startsWith("video") -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/Bajar"
+            else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI to "Download/Bajar"
+        }
+        val v = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mime)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, dir)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val u = contentResolver.insert(collection, v) ?: throw IllegalStateException("No se pudo crear el archivo")
+        contentResolver.openOutputStream(u)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
+        v.clear()
+        v.put(MediaStore.MediaColumns.IS_PENDING, 0)
+        contentResolver.update(u, v, null, null)
+        return dir
+    }
+
+    private fun nice(m: String?): String {
+        val lines = m.orEmpty().lines()
+        val l = lines.lastOrNull { it.contains("ERROR") } ?: lines.lastOrNull { it.isNotBlank() } ?: "Error desconocido"
+        return l.removePrefix("ERROR: ").trim().take(220)
+    }
+
+    inner class Bridge {
+        @JavascriptInterface fun start(url: String, mode: String) {
+            cancelled = false
+            pool.execute { download(url, mode) }
+        }
+        @JavascriptInterface fun cancel() {
+            cancelled = true
+            YoutubeDL.getInstance().destroyProcessById("dl")
+        }
+        @JavascriptInterface fun update() { pool.execute { refresh(true) } }
+        @JavascriptInterface fun ver(): String = version
+        @JavascriptInterface fun pending(): String { val s = shared; shared = ""; return s }
+        @JavascriptInterface fun clip(): String {
+            val c = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+            return c.primaryClip?.takeIf { it.itemCount > 0 }
+                ?.getItemAt(0)?.coerceToText(this@MainActivity)?.toString() ?: ""
+        }
+    }
+}

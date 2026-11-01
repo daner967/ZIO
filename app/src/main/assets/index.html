@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Bajar</title>
+<style>
+:root{--bg:#EDF0F5;--card:#FFFFFF;--ink:#12182B;--mute:#566080;--line:#D3D9E6;--acc:#FFC93C;--track:#FBE9B0;--bad:#B3261E}
+@media(prefers-color-scheme:dark){:root{--bg:#0E1322;--card:#171E34;--ink:#E9EDF8;--mute:#9AA3BF;--line:#2B3556;--bad:#FF9A92}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}
+main{max-width:34rem;margin:0 auto;padding:28px 20px 40px}
+h1{font:600 clamp(3.4rem,20vw,5.2rem)/.95 "Iowan Old Style","Noto Serif",Georgia,serif;letter-spacing:-.03em;margin:8px 0 12px}
+.lead{color:var(--mute);margin:0 0 28px;max-width:28ch}
+button{font:inherit;color:inherit;cursor:pointer}
+.field{display:flex;gap:8px;background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:6px 6px 6px 16px}
+.field:focus-within{border-color:var(--ink)}
+input{flex:1;min-width:0;border:0;outline:0;background:none;color:inherit;font:inherit}
+.ghost{border:0;background:var(--bg);border-radius:11px;padding:0 14px;min-height:44px;font-weight:600}
+#hint{margin:10px 2px 0;color:var(--mute);font-size:.92rem}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:18px 0;background:var(--line);padding:4px;border-radius:14px}
+.seg button{border:0;background:none;min-height:46px;border-radius:10px;font-weight:600;color:var(--mute)}
+.seg .on{background:var(--card);color:var(--ink)}
+.seg button:disabled{opacity:.45}
+.go{width:100%;min-height:62px;border:0;border-radius:999px;font-size:1.1rem;font-weight:700;color:#12182B;--p:100%;background:linear-gradient(90deg,var(--acc) var(--p),var(--track) var(--p))}
+.stop{display:block;margin:10px auto 0;border:0;background:none;color:var(--mute);text-decoration:underline;min-height:44px}
+#line{margin:10px 2px 0;color:var(--mute);font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.4em}
+#msg{margin:10px 2px 0;font-weight:600}
+#msg.err{color:var(--bad)}
+h2{font-size:1rem;margin:32px 2px 6px}
+ul{list-style:none;margin:0;padding:0}
+li{padding:12px 2px;border-top:1px solid var(--line)}
+li b{display:block;font-weight:600;overflow-wrap:anywhere}
+li span{color:var(--mute);font-size:.88rem}
+footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.link{border:0;background:none;color:var(--ink);text-decoration:underline;min-height:44px;padding:0}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+[hidden]{display:none!important}
+</style></head>
+<body><main>
+<h1>Bajar</h1>
+<p class="lead">Pega un enlace de YouTube y guarda el audio o el video en tu teléfono.</p>
+<div class="field">
+  <input id="url" type="url" inputmode="url" placeholder="Enlace del video o de la lista" autocomplete="off" aria-label="Enlace">
+  <button class="ghost" id="paste">Pegar</button>
+</div>
+<p id="hint" hidden>Lista detectada: se guardan hasta 25 canciones en audio, dentro de un ZIP.</p>
+<div class="seg">
+  <button data-m="audio" class="on">Audio MP3</button>
+  <button data-m="video">Video MP4</button>
+</div>
+<button class="go" id="go">Descargar</button>
+<button class="stop" id="stop" hidden>Cancelar</button>
+<p id="line"></p>
+<p id="msg" role="status"></p>
+<h2 id="h2" hidden>Recientes</h2>
+<ul id="hist"></ul>
+<footer><span>Motor yt-dlp <span id="ver">iniciando…</span></span><button class="link" id="upd">Actualizar motor</button></footer>
+</main>
+<script>
+const $=s=>document.querySelector(s),A=window.Android;
+let mode='audio',busy=false,item=0,total=0,hist=[];
+try{hist=JSON.parse(localStorage.getItem('h')||'[]')}catch(e){}
+const isList=u=>/[?&]list=/.test(u)&&!/[?&]v=/.test(u)&&!/youtu\.be\//.test(u);
+const cur=()=>$('#url').value.trim();
+function sync(){
+  const l=isList(cur());
+  $('#hint').hidden=!l;
+  document.querySelectorAll('.seg button').forEach(b=>{
+    b.classList.toggle('on',l?b.dataset.m==='audio':b.dataset.m===mode);
+    b.disabled=busy||(l&&b.dataset.m==='video');
+  });
+}
+function say(t,err){const m=$('#msg');m.textContent=t;m.className=err?'err':''}
+function draw(){
+  $('#h2').hidden=!hist.length;
+  $('#hist').innerHTML='';
+  hist.forEach(h=>{
+    const li=document.createElement('li'),b=document.createElement('b'),s=document.createElement('span');
+    b.textContent=h.n;s.textContent='Guardado en '+h.w;li.append(b,s);$('#hist').append(li);
+  });
+}
+function setBusy(v){
+  busy=v;
+  $('#go').disabled=v;$('#stop').hidden=!v;$('#upd').disabled=v;
+  $('#go').style.setProperty('--p',v?'0%':'100%');
+  $('#go').textContent=v?'Preparando…':'Descargar';
+  if(!v)$('#line').textContent='';
+  sync();
+}
+function onEvent(e){
+  if(e.t==='ready'){$('#ver').textContent=e.m}
+  else if(e.t==='progress'){
+    const x=/item (\d+) of (\d+)/.exec(e.m);
+    if(x){item=+x[1];total=+x[2]}
+    let p=Math.max(0,Math.min(100,e.p));
+    if(total)p=((item-1)+p/100)/total*100;
+    $('#go').style.setProperty('--p',p+'%');
+    $('#go').textContent=/ExtractAudio|Merger|ffmpeg/i.test(e.m)?'Convirtiendo…':'Descargando '+Math.round(p)+'%';
+    $('#line').textContent=total?'Canción '+item+' de '+total:e.m.replace(/^\[download\]\s*/,'');
+  }
+  else if(e.t==='done'){
+    setBusy(false);say('Listo. Ya está en tu teléfono.');
+    hist.unshift({n:e.n,w:e.m});hist=hist.slice(0,10);
+    try{localStorage.setItem('h',JSON.stringify(hist))}catch(x){}
+    draw();
+  }
+  else if(e.t==='error'){setBusy(false);say(e.m,true)}
+  else if(e.t==='cancelled'){setBusy(false);say('Descarga cancelada')}
+  else if(e.t==='info'){say(e.m)}
+}
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;sync()});
+$('#url').oninput=sync;
+$('#paste').onclick=()=>{$('#url').value=A.clip().trim();sync()};
+$('#go').onclick=()=>{
+  const u=cur();
+  if(!/^https?:\/\//i.test(u)){say('Pega un enlace que empiece con https://',true);return}
+  item=0;total=0;say('');setBusy(true);
+  A.start(u,isList(u)?'list':mode);
+};
+$('#stop').onclick=()=>A.cancel();
+$('#upd').onclick=()=>{say('Actualizando el motor…');A.update()};
+function takeShared(){const l=A.pending();if(l){$('#url').value=l;sync()}}
+$('#ver').textContent=A.ver()||'iniciando…';
+draw();sync();takeShared();
+</script></body></html>
