@@ -85,43 +85,46 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun download(url: String, mode: String) {
+    private fun download(url: String, mode: String, o: JSONObject) {
         if (cancelled) { emit("cancelled"); return }
         if (!ready) { emit("error", "El motor sigue iniciando. Inténtalo en unos segundos."); return }
         runOnUiThread { window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         val work = File(cacheDir, "w${System.currentTimeMillis()}").apply { mkdirs() }
         try {
+            // Opciones elegidas en la pantalla de descarga (solo valores conocidos)
+            val vq = o.optString("vq").takeIf { it in setOf("max", "1080", "720", "480", "360") } ?: "720"
+            val af = o.optString("af").takeIf { it in setOf("mp3", "m4a", "opus", "flac", "wav") } ?: "mp3"
+            val aq = o.optString("aq").takeIf { it in setOf("best", "med", "low") } ?: "best"
+
             val r = YoutubeDLRequest(url)
             r.addOption("--windows-filenames")
             r.addOption("--no-mtime")
             r.addOption("--write-thumbnail") // la miniatura se guarda como imagen .jpg
             r.addOption("--convert-thumbnails", "jpg")
             val dir = work.absolutePath
-            when (mode) {
-                "video" -> {
-                    r.addOption("--no-playlist")
-                    r.addOption("-f", "bv*+ba/b")
-                    r.addOption("-S", "res:1080,ext")
-                    r.addOption("--merge-output-format", "mp4")
-                    r.addOption("-o", "$dir/%(title).100s.%(ext)s")
-                }
-                "audio" -> {
-                    r.addOption("--no-playlist")
-                    r.addOption("-x")
-                    r.addOption("--audio-format", "mp3")
-                    r.addOption("--audio-quality", "0")
-                    r.addOption("--embed-thumbnail") // y además queda como portada del MP3
-                    r.addOption("-o", "$dir/%(title).100s.%(ext)s")
-                }
-                else -> { // lista: solo audio, máximo 25, todo en un ZIP
+            if (mode == "video") {
+                r.addOption("--no-playlist")
+                r.addOption("-f", "bv*+ba/b")
+                r.addOption("-S", if (vq == "max") "res,ext" else "res:$vq,ext")
+                r.addOption("--merge-output-format", "mp4")
+                r.addOption("-o", "$dir/%(title).100s.%(ext)s")
+            } else { // audio suelto o lista (solo audio, máximo 25, todo en un ZIP)
+                if (mode == "list") {
                     r.addOption("--yes-playlist")
                     r.addOption("--playlist-end", "25")
                     r.addOption("--ignore-errors")
-                    r.addOption("-x")
-                    r.addOption("--audio-format", "mp3")
-                    r.addOption("--audio-quality", "0")
-                    r.addOption("--embed-thumbnail")
                     r.addOption("-o", "$dir/%(playlist_title).80s/%(playlist_index)02d - %(title).100s.%(ext)s")
+                } else {
+                    r.addOption("--no-playlist")
+                    r.addOption("-o", "$dir/%(title).100s.%(ext)s")
+                }
+                val cap = when (aq) { "med" -> "[abr<=140]"; "low" -> "[abr<=75]"; else -> "" }
+                r.addOption("-f", "ba$cap/ba/b")
+                r.addOption("-x")
+                r.addOption("--audio-format", af)
+                if (af == "mp3") {
+                    r.addOption("--audio-quality", when (aq) { "med" -> "128K"; "low" -> "64K"; else -> "0" })
+                    r.addOption("--embed-thumbnail") // en MP3 la miniatura también queda como portada
                 }
             }
 
@@ -133,7 +136,7 @@ class MainActivity : Activity() {
             }
             if (cancelled) { emit("cancelled"); return }
 
-            val media = setOf("mp3", "mp4", "mkv", "webm", "m4a")
+            val media = setOf("mp3", "m4a", "opus", "flac", "wav", "mp4", "mkv", "webm")
             val imgs = setOf("jpg", "jpeg", "png", "webp")
             val all = work.walkTopDown().filter { it.isFile }.sortedBy { it.name }.toList()
             val files = all.filter { it.extension.lowercase() in media }
@@ -173,6 +176,9 @@ class MainActivity : Activity() {
     private fun mimeOf(f: File) = when (f.extension.lowercase()) {
         "mp3" -> "audio/mpeg"
         "m4a" -> "audio/mp4"
+        "opus" -> "audio/ogg"
+        "flac" -> "audio/flac"
+        "wav" -> "audio/x-wav"
         "mp4" -> "video/mp4"
         "mkv" -> "video/x-matroska"
         "webm" -> "video/webm"
@@ -204,10 +210,15 @@ class MainActivity : Activity() {
         return l.removePrefix("ERROR: ").trim().take(220)
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        web.evaluateJavascript("window.goBack?goBack():false") { r -> if (r != "true") finish() }
+    }
+
     inner class Bridge {
-        @JavascriptInterface fun start(url: String, mode: String) {
+        @JavascriptInterface fun start(url: String, mode: String, opts: String) {
             cancelled = false
-            pool.execute { download(url, mode) }
+            pool.execute { download(url, mode, JSONObject(opts)) }
         }
         @JavascriptInterface fun cancel() {
             cancelled = true
