@@ -94,6 +94,8 @@ class MainActivity : Activity() {
             val r = YoutubeDLRequest(url)
             r.addOption("--windows-filenames")
             r.addOption("--no-mtime")
+            r.addOption("--write-thumbnail") // la miniatura se guarda como imagen .jpg
+            r.addOption("--convert-thumbnails", "jpg")
             val dir = work.absolutePath
             when (mode) {
                 "video" -> {
@@ -108,6 +110,7 @@ class MainActivity : Activity() {
                     r.addOption("-x")
                     r.addOption("--audio-format", "mp3")
                     r.addOption("--audio-quality", "0")
+                    r.addOption("--embed-thumbnail") // y además queda como portada del MP3
                     r.addOption("-o", "$dir/%(title).100s.%(ext)s")
                 }
                 else -> { // lista: solo audio, máximo 25, todo en un ZIP
@@ -117,6 +120,7 @@ class MainActivity : Activity() {
                     r.addOption("-x")
                     r.addOption("--audio-format", "mp3")
                     r.addOption("--audio-quality", "0")
+                    r.addOption("--embed-thumbnail")
                     r.addOption("-o", "$dir/%(playlist_title).80s/%(playlist_index)02d - %(title).100s.%(ext)s")
                 }
             }
@@ -129,35 +133,34 @@ class MainActivity : Activity() {
             }
             if (cancelled) { emit("cancelled"); return }
 
-            val ok = setOf("mp3", "mp4", "mkv", "webm", "m4a")
-            val files = work.walkTopDown()
-                .filter { it.isFile && it.extension.lowercase() in ok }
-                .sortedBy { it.name }.toList()
+            val media = setOf("mp3", "mp4", "mkv", "webm", "m4a")
+            val imgs = setOf("jpg", "jpeg", "png", "webp")
+            val all = work.walkTopDown().filter { it.isFile }.sortedBy { it.name }.toList()
+            val files = all.filter { it.extension.lowercase() in media }
+            val thumbs = all.filter { it.extension.lowercase() in imgs }
             if (files.isEmpty()) { emit("error", nice(err)); return }
+
+            // Todo va a Download/ZIO, con audios y videos en subcarpetas separadas
+            val folder = if (mode == "video") "Download/ZIO/Videos" else "Download/ZIO/Audios"
 
             if (mode == "list") {
                 val title = work.listFiles { f -> f.isDirectory }?.firstOrNull()?.name ?: "playlist"
                 val zip = File(work, "$title.zip")
                 ZipOutputStream(zip.outputStream().buffered()).use { z ->
                     z.setLevel(0)
-                    files.forEach { f ->
+                    (files + thumbs).forEach { f ->
                         z.putNextEntry(ZipEntry("$title/${f.name}"))
                         f.inputStream().use { it.copyTo(z) }
                         z.closeEntry()
                     }
                 }
                 val extra = if (err != null) ", algunas fallaron" else ""
-                emit("done", save(zip, "application/zip"), n = "${zip.name} (${files.size} canciones$extra)")
+                emit("done", save(zip, "application/zip", folder), n = "${zip.name} (${files.size} canciones$extra)")
             } else {
                 val f = files.first()
-                val mime = when (f.extension.lowercase()) {
-                    "mp3" -> "audio/mpeg"
-                    "m4a" -> "audio/mp4"
-                    "mp4" -> "video/mp4"
-                    "mkv" -> "video/x-matroska"
-                    else -> "video/webm"
-                }
-                emit("done", save(f, mime), n = f.name)
+                save(f, mimeOf(f), folder)
+                thumbs.forEach { save(it, mimeOf(it), folder) }
+                emit("done", folder, n = if (thumbs.isEmpty()) f.name else "${f.name} + miniatura")
             }
         } catch (e: Exception) {
             emit("error", nice(e.message))
@@ -167,20 +170,27 @@ class MainActivity : Activity() {
         }
     }
 
-    // Audio -> Music/Bajar, video -> Movies/Bajar, ZIP -> Download/Bajar
-    private fun save(f: File, mime: String): String {
-        val (collection, dir) = when {
-            mime.startsWith("audio") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/ZIO"
-            mime.startsWith("video") -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/ZIO"
-            else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI to "Download/ZIO"
-        }
+    private fun mimeOf(f: File) = when (f.extension.lowercase()) {
+        "mp3" -> "audio/mpeg"
+        "m4a" -> "audio/mp4"
+        "mp4" -> "video/mp4"
+        "mkv" -> "video/x-matroska"
+        "webm" -> "video/webm"
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "webp" -> "image/webp"
+        else -> "application/octet-stream"
+    }
+
+    private fun save(f: File, mime: String, dir: String): String {
         val v = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
             put(MediaStore.MediaColumns.RELATIVE_PATH, dir)
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
-        val u = contentResolver.insert(collection, v) ?: throw IllegalStateException("No se pudo crear el archivo")
+        val u = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v)
+            ?: throw IllegalStateException("No se pudo crear el archivo")
         contentResolver.openOutputStream(u)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
         v.clear()
         v.put(MediaStore.MediaColumns.IS_PENDING, 0)
