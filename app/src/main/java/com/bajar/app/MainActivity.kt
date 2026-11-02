@@ -7,6 +7,7 @@ import android.content.ContentValues
 import android.content.Intent
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Base64
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -67,7 +68,7 @@ class MainActivity : Activity() {
             version = YoutubeDL.getInstance().version(application) ?: ""
             emit("ready", version)
         } catch (e: Exception) {
-            emit("error", "No se pudo iniciar el motor: ${e.message}")
+            emit("error", "e_init_fail|${e.message}")
             return
         }
         refresh(false)
@@ -79,21 +80,22 @@ class MainActivity : Activity() {
             YoutubeDL.getInstance().updateYoutubeDL(application, YoutubeDL.UpdateChannel.STABLE)
             version = YoutubeDL.getInstance().version(application) ?: version
             emit("ready", version)
-            if (show) emit("info", "Motor actualizado")
+            if (show) emit("info", "i_updated")
         } catch (e: Exception) {
-            if (show) emit("error", "No se pudo actualizar: ${e.message}")
+            if (show) emit("error", "e_upd_fail|${e.message}")
         }
     }
 
     private fun download(url: String, mode: String, o: JSONObject) {
         if (cancelled) { emit("cancelled"); return }
-        if (!ready) { emit("error", "El motor sigue iniciando. Inténtalo en unos segundos."); return }
+        if (!ready) { emit("error", "e_init_wait"); return }
         runOnUiThread { window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         val work = File(cacheDir, "w${System.currentTimeMillis()}").apply { mkdirs() }
         try {
             // Opciones elegidas en la pantalla de descarga (solo valores conocidos)
             val vq = o.optString("vq").takeIf { it in setOf("max", "1080", "720", "480", "360") } ?: "720"
             val af = o.optString("af").takeIf { it in setOf("mp3", "m4a", "opus", "flac", "wav") } ?: "mp3"
+            val en = o.optString("lang") == "en"
             val aq = o.optString("aq").takeIf { it in setOf("best", "med", "low") } ?: "best"
 
             val r = YoutubeDLRequest(url)
@@ -128,9 +130,15 @@ class MainActivity : Activity() {
                 }
             }
 
+            val sent = HashSet<String>()
             var err: String? = null
             try {
-                YoutubeDL.getInstance().execute(r, "dl") { p, _, line -> emit("progress", "$line", p) }
+                YoutubeDL.getInstance().execute(r, "dl") { p, _, line ->
+                    val ln = "$line"
+                    // al empezar cada descarga se envía la miniatura y el título a la ventana de progreso
+                    if (ln.startsWith("[download] Destination:")) meta(work, ln, sent)
+                    emit("progress", ln, p)
+                }
             } catch (e: Exception) {
                 err = e.message
             }
@@ -157,19 +165,38 @@ class MainActivity : Activity() {
                         z.closeEntry()
                     }
                 }
-                val extra = if (err != null) ", algunas fallaron" else ""
-                emit("done", save(zip, "application/zip", folder), n = "${zip.name} (${files.size} canciones$extra)")
+                val extra = if (err != null) (if (en) ", some failed" else ", algunas fallaron") else ""
+                emit("done", save(zip, "application/zip", folder), n = "${zip.name} (${files.size} ${if (en) "songs" else "canciones"}$extra)")
             } else {
                 val f = files.first()
                 save(f, mimeOf(f), folder)
                 thumbs.forEach { save(it, mimeOf(it), folder) }
-                emit("done", folder, n = if (thumbs.isEmpty()) f.name else "${f.name} + miniatura")
+                emit("done", folder, n = if (thumbs.isEmpty()) f.name else "${f.name} + ${if (en) "thumbnail" else "miniatura"}")
             }
         } catch (e: Exception) {
             emit("error", nice(e.message))
         } finally {
             work.deleteRecursively()
             runOnUiThread { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        }
+    }
+
+    private fun meta(work: File, line: String, sent: MutableSet<String>) {
+        try {
+            val path = line.substringAfter("Destination:").trim()
+            val title = File(path).nameWithoutExtension
+                .replace(Regex("\\.f\\d+$"), "").replace(Regex("^\\d+ - "), "")
+            val img = work.walkTopDown()
+                .filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") && it.path !in sent }
+                .maxByOrNull { it.lastModified() }
+            var data = ""
+            if (img != null && img.length() in 1..2_500_000) {
+                sent.add(img.path)
+                val mime = when (img.extension.lowercase()) { "webp" -> "image/webp"; "png" -> "image/png"; else -> "image/jpeg" }
+                data = "data:$mime;base64," + Base64.encodeToString(img.readBytes(), Base64.NO_WRAP)
+            }
+            emit("meta", title, 0f, data)
+        } catch (e: Exception) {
         }
     }
 
@@ -196,7 +223,7 @@ class MainActivity : Activity() {
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         val u = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v)
-            ?: throw IllegalStateException("No se pudo crear el archivo")
+            ?: throw IllegalStateException("e_create")
         contentResolver.openOutputStream(u)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
         v.clear()
         v.put(MediaStore.MediaColumns.IS_PENDING, 0)
@@ -206,7 +233,7 @@ class MainActivity : Activity() {
 
     private fun nice(m: String?): String {
         val lines = m.orEmpty().lines()
-        val l = lines.lastOrNull { it.contains("ERROR") } ?: lines.lastOrNull { it.isNotBlank() } ?: "Error desconocido"
+        val l = lines.lastOrNull { it.contains("ERROR") } ?: lines.lastOrNull { it.isNotBlank() } ?: "e_unknown"
         return l.removePrefix("ERROR: ").trim().take(220)
     }
 

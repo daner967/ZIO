@@ -17,8 +17,10 @@ h1{margin:0;padding-left:14px;border-left:3px solid var(--acc);display:flex;alig
 .gear{margin-left:auto;align-self:flex-start;width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--mute);display:grid;place-items:center}
 .gear svg{width:22px;height:22px}
 .menu{position:absolute;right:0;top:60px;z-index:5;width:min(290px,100%);background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:6px;box-shadow:0 10px 28px rgba(27,16,48,.28)}
-.menu button{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:48px;padding:0 12px;border:0;background:none;border-radius:10px;text-align:left;font-weight:600}
-.menu button:active{background:var(--bg)}
+.menu>button{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:48px;padding:0 12px;border:0;background:none;border-radius:10px;text-align:left;font-weight:600}
+.menu>button:active{background:var(--bg)}
+.mlang{padding:8px 6px 6px;border-top:1px solid var(--line);margin-top:4px}
+.mlang>span{display:block;font-weight:600;margin:0 6px 8px}
 .sw{flex:none;position:relative;width:42px;height:24px;border-radius:12px;background:var(--off)}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff}
 [aria-checked=true] .sw{background:var(--acc)}
@@ -31,8 +33,7 @@ input{flex:1;min-width:0;border:0;outline:0;background:none;color:inherit;font:i
 .hint{margin:12px 2px 0;color:var(--mute);font-size:.92rem;border-left:3px solid var(--acc);padding-left:10px}
 .go{display:block;width:100%;min-height:62px;margin-top:20px;border:0;border-radius:999px;font-size:1.1rem;font-weight:700;color:#fff;--p:100%;background:linear-gradient(90deg,var(--acc) var(--p),var(--track) var(--p))}
 .stop{display:block;margin:10px auto 0;border:0;background:none;color:var(--mute);text-decoration:underline;min-height:44px}
-#line{margin:10px 2px 0;color:var(--mute);font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.4em}
-#msg{margin:10px 2px 0;font-weight:600}
+#msg{margin:12px 2px 0;font-weight:600}
 #msg.err{color:var(--bad)}
 .sec{font-size:1rem;margin:26px 2px 10px;color:var(--accT);font-weight:700}
 ul{list-style:none;margin:0;padding:0}
@@ -47,7 +48,7 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
 .ptitle{margin:0;font:600 1.4rem/1.2 "Iowan Old Style","Noto Serif",Georgia,serif}
 .olink{margin:0 0 16px;color:var(--mute);font-size:.9rem;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--line);padding:4px;border-radius:14px}
-.seg button{border:0;background:none;min-height:46px;border-radius:10px;font-weight:600;color:var(--mute)}
+.seg button{border:0;background:none;min-height:44px;border-radius:10px;font-weight:600;color:var(--mute)}
 .seg .on{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 2px var(--acc)}
 .seg button:disabled{opacity:.45}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
@@ -55,6 +56,20 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
 .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
 .chip:disabled{opacity:.4}
 .note{margin:8px 2px 0;color:var(--mute);font-size:.88rem}
+.modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(19,11,36,.74)}
+.sheet{width:100%;max-width:26rem;background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:16px;box-shadow:0 18px 48px rgba(0,0,0,.4)}
+.thumb{position:relative;aspect-ratio:16/9;border-radius:16px;background:var(--acc);display:grid;place-items:center;overflow:hidden}
+.thumb .ph{width:26%}
+.thumb .ph img{width:100%;display:block}
+.thumb #dimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.dtitle{margin:14px 2px 12px;font-size:1.02rem;line-height:1.3;font-weight:600;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pbar{height:12px;border-radius:6px;background:var(--line);overflow:hidden}
+.pbar i{display:block;height:100%;width:0;background:var(--acc);border-radius:6px;transition:width .25s}
+@media(prefers-reduced-motion:reduce){.pbar i{transition:none}}
+.pstat{display:flex;justify-content:space-between;gap:12px;margin:8px 2px 0;color:var(--mute);font-size:.92rem}
+.pstat b{color:var(--ink);font-variant-numeric:tabular-nums}
+.pstat.err span{color:var(--bad)}
+.sheet .go{margin-top:14px;min-height:54px}
 :focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 [hidden]{display:none!important}
 </style></head>
@@ -64,51 +79,52 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
   <header class="brand">
     <span class="mark"><img src="logo.png" alt=""></span>
     <h1>ZIO</h1>
-    <button class="gear" id="gear" aria-label="Ajustes" aria-expanded="false">
+    <button class="gear" id="gear" data-al="gear" aria-label="Ajustes" aria-expanded="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
     <div class="menu" id="menu" hidden>
-      <button id="mhist">Historial de descargas</button>
-      <button id="mtog" role="switch" aria-checked="true"><span>Mostrar historial en inicio</span><i class="sw"></i></button>
+      <button id="mhist" data-i="m_hist">Historial de descargas</button>
+      <button id="mtog" role="switch" aria-checked="true"><span data-i="m_tog">Mostrar historial en inicio</span><i class="sw"></i></button>
+      <div class="mlang"><span data-i="m_lang">Idioma</span>
+        <div class="seg" id="lang"><button data-l="es">Español</button><button data-l="en">English</button></div>
+      </div>
     </div>
   </header>
-  <p class="lead">Pega un enlace de YouTube y guarda el audio o el video, con su miniatura, en tu teléfono.</p>
+  <p class="lead" data-i="lead"></p>
   <div class="field">
-    <input id="url" type="url" inputmode="url" placeholder="Enlace del video o de la lista" autocomplete="off" aria-label="Enlace">
-    <button class="ghost" id="paste">Pegar</button>
+    <input id="url" type="url" inputmode="url" data-ph="ph" autocomplete="off" aria-label="Link">
+    <button class="ghost" id="paste" data-i="paste">Pegar</button>
   </div>
-  <p class="hint" id="hint" hidden>Lista detectada: se guardan hasta 25 canciones en audio, dentro de un ZIP.</p>
+  <p class="hint" id="hint" data-i="hint" hidden></p>
   <button class="go" id="go">Descargar</button>
-  <button class="stop" id="stop" hidden>Cancelar</button>
-  <p id="line"></p>
   <p id="msg" role="status"></p>
-  <div id="recent" hidden><h2 class="sec">Recientes</h2><ul id="rlist"></ul></div>
-  <footer><span>Motor yt-dlp <span id="ver">iniciando…</span></span><button class="link" id="upd">Actualizar motor</button></footer>
+  <div id="recent" hidden><h2 class="sec" data-i="recent">Recientes</h2><ul id="rlist"></ul></div>
+  <footer><span><span data-i="engine">Motor yt-dlp</span> <span id="ver"></span></span><button class="link" id="upd" data-i="upd">Actualizar motor</button></footer>
 </section>
 
 <section id="opts" hidden>
   <div class="top">
-    <button class="back" id="oback" aria-label="Volver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
-    <h2 class="ptitle">Opciones de descarga</h2>
+    <button class="back" id="oback" data-al="back" aria-label="Volver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h2 class="ptitle" data-i="o_title">Opciones de descarga</h2>
   </div>
   <p class="olink" id="olink"></p>
   <div class="seg" id="otype"><button data-t="video">Video</button><button data-t="audio">Audio</button></div>
-  <p class="note" id="olist" hidden>Lista detectada: solo audio, hasta 25 canciones en un ZIP.</p>
+  <p class="note" id="olist" data-i="o_list" hidden></p>
 
   <div id="sv">
-    <h3 class="sec">Calidad del video</h3>
+    <h3 class="sec" data-i="vq_t">Calidad del video</h3>
     <div class="chips">
-      <button class="chip" data-k="vq" data-v="max">Máxima</button>
+      <button class="chip" data-k="vq" data-v="max" data-i="max">Máxima</button>
       <button class="chip" data-k="vq" data-v="1080">1080p</button>
       <button class="chip" data-k="vq" data-v="720">720p</button>
       <button class="chip" data-k="vq" data-v="480">480p</button>
       <button class="chip" data-k="vq" data-v="360">360p</button>
     </div>
-    <p class="note">Si el video no llega a esa calidad, se baja la más alta que tenga.</p>
+    <p class="note" data-i="vq_note"></p>
   </div>
 
   <div id="sa">
-    <h3 class="sec">Formato del audio</h3>
+    <h3 class="sec" data-i="af_t">Formato del audio</h3>
     <div class="chips">
       <button class="chip" data-k="af" data-v="mp3">MP3</button>
       <button class="chip" data-k="af" data-v="m4a">M4A</button>
@@ -116,53 +132,87 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
       <button class="chip" data-k="af" data-v="flac">FLAC</button>
       <button class="chip" data-k="af" data-v="wav">WAV</button>
     </div>
-    <p class="note" id="anote" hidden>Formato sin compresión: pesa mucho más y no mejora el audio original de YouTube.</p>
-    <h3 class="sec">Calidad del audio</h3>
+    <p class="note" id="anote" data-i="af_note" hidden></p>
+    <h3 class="sec" data-i="aq_t">Calidad del audio</h3>
     <div class="chips">
-      <button class="chip" data-k="aq" data-v="best">Mejor</button>
-      <button class="chip" data-k="aq" data-v="med">Media</button>
-      <button class="chip" data-k="aq" data-v="low">Baja</button>
+      <button class="chip" data-k="aq" data-v="best" data-i="best">Mejor</button>
+      <button class="chip" data-k="aq" data-v="med" data-i="med">Media</button>
+      <button class="chip" data-k="aq" data-v="low" data-i="low">Baja</button>
     </div>
   </div>
 
-  <button class="go" id="ostart">Descargar</button>
+  <button class="go" id="ostart" data-i="go">Descargar</button>
 </section>
 
 <section id="hview" hidden>
   <div class="top">
-    <button class="back" id="hback" aria-label="Volver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
-    <h2 class="ptitle">Historial de descargas</h2>
+    <button class="back" id="hback" data-al="back" aria-label="Volver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h2 class="ptitle" data-i="h_title">Historial de descargas</h2>
   </div>
-  <p class="note" id="hempty">Todavía no hay descargas.</p>
+  <p class="note" id="hempty" data-i="h_empty">Todavía no hay descargas.</p>
   <ul id="hlist"></ul>
-  <button class="link" id="hclear" hidden>Borrar historial</button>
+  <button class="link" id="hclear" hidden></button>
 </section>
 
 </main>
+
+<div class="modal" id="dl" role="dialog" aria-modal="true" aria-labelledby="dtitle" hidden>
+  <div class="sheet">
+    <div class="thumb"><span class="ph" id="dph"><img src="logo.png" alt=""></span><img id="dimg" alt="" hidden></div>
+    <h3 class="dtitle" id="dtitle"></h3>
+    <div class="pbar" id="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="pfill"></i></div>
+    <p class="pstat" id="pstat"><span id="pst"></span><b id="ppct">0%</b></p>
+    <button class="stop" id="dcancel" data-i="cancel">Cancelar</button>
+    <button class="go" id="dclose" data-i="close" hidden>Cerrar</button>
+  </div>
+</div>
+
 <script>
+const T={
+es:{lead:'Pega un enlace de YouTube y guarda el audio o el video, con su miniatura, en tu teléfono.',ph:'Enlace del video o de la lista',paste:'Pegar',hint:'Lista detectada: se guardan hasta 25 canciones en audio, dentro de un ZIP.',go:'Descargar',recent:'Recientes',engine:'Motor yt-dlp',upd:'Actualizar motor',starting:'iniciando…',gear:'Ajustes',back:'Volver',m_hist:'Historial de descargas',m_tog:'Mostrar historial en inicio',m_lang:'Idioma',o_title:'Opciones de descarga',o_list:'Lista detectada: solo audio, hasta 25 canciones en un ZIP.',vq_t:'Calidad del video',max:'Máxima',vq_note:'Si el video no llega a esa calidad, se baja la más alta que tenga.',af_t:'Formato del audio',af_note:'Formato sin compresión: pesa mucho más y no mejora el audio original de YouTube.',aq_t:'Calidad del audio',best:'Mejor',med:'Media',low:'Baja',h_title:'Historial de descargas',h_empty:'Todavía no hay descargas.',h_clear:'Borrar historial',h_sure:'Toca otra vez para borrar todo',saved_in:'Guardado en',dl_get:'Obteniendo información…',preparing:'Preparando…',downloading:'Descargando',converting:'Convirtiendo…',song:'Canción {a} de {b}',cancel:'Cancelar',close:'Cerrar',ok:'Listo. Ya está en tu teléfono.',cancelled:'Descarga cancelada',bad_link:'Pega un enlace que empiece con https://',updating:'Actualizando el motor…',e_init_wait:'El motor sigue iniciando. Inténtalo en unos segundos.',e_init_fail:'No se pudo iniciar el motor: ',e_upd_fail:'No se pudo actualizar: ',i_updated:'Motor actualizado',e_create:'No se pudo crear el archivo',e_unknown:'Error desconocido'},
+en:{lead:'Paste a YouTube link and save the audio or video, with its thumbnail, to your phone.',ph:'Video or playlist link',paste:'Paste',hint:'Playlist detected: up to 25 songs are saved as audio inside a ZIP.',go:'Download',recent:'Recent',engine:'yt-dlp engine',upd:'Update engine',starting:'starting…',gear:'Settings',back:'Back',m_hist:'Download history',m_tog:'Show history on home',m_lang:'Language',o_title:'Download options',o_list:'Playlist detected: audio only, up to 25 songs in a ZIP.',vq_t:'Video quality',max:'Maximum',vq_note:"If the video doesn't reach that quality, the highest available is downloaded.",af_t:'Audio format',af_note:"Uncompressed format: much larger files, and it doesn't improve the original YouTube audio.",aq_t:'Audio quality',best:'Best',med:'Medium',low:'Low',h_title:'Download history',h_empty:'No downloads yet.',h_clear:'Clear history',h_sure:'Tap again to clear everything',saved_in:'Saved in',dl_get:'Getting info…',preparing:'Preparing…',downloading:'Downloading',converting:'Converting…',song:'Song {a} of {b}',cancel:'Cancel',close:'Close',ok:"Done. It's on your phone.",cancelled:'Download cancelled',bad_link:'Paste a link that starts with https://',updating:'Updating the engine…',e_init_wait:'The engine is still starting. Try again in a few seconds.',e_init_fail:"Couldn't start the engine: ",e_upd_fail:"Couldn't update: ",i_updated:'Engine updated',e_create:"Couldn't create the file",e_unknown:'Unknown error'}
+};
 const $=s=>document.querySelector(s),A=window.Android;
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
-let P=Object.assign({type:'audio',vq:'720',af:'mp3',aq:'best',showHist:true},ld('p',{}));
-let hist=ld('h',[]),sel={},view='home',busy=false,item=0,total=0,listMode=false,armed=false;
+let P=Object.assign({type:'audio',vq:'720',af:'mp3',aq:'best',showHist:true,lang:'es'},ld('p',{}));
+let hist=ld('h',[]),sel={},view='home',busy=false,item=0,total=0,listMode=false,armed=false,engVer='';
+const t=(k,a,b)=>{let s=(T[P.lang]||T.es)[k];if(s===undefined)s=T.es[k]||k;return s.replace('{a}',a).replace('{b}',b)};
+// mensajes que llegan de la app: "codigo|detalle" se traducen; el resto (errores de yt-dlp) se muestra tal cual
+function tm(m){
+  if(!m)return '';
+  const i=m.indexOf('|'),c=i<0?m:m.slice(0,i);
+  return T.es[c]!==undefined?t(c)+(i<0?'':m.slice(i+1)):m;
+}
+function applyLang(){
+  document.documentElement.lang=P.lang;
+  document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));
+  document.querySelectorAll('[data-ph]').forEach(e=>e.placeholder=t(e.dataset.ph));
+  document.querySelectorAll('[data-al]').forEach(e=>e.setAttribute('aria-label',t(e.dataset.al)));
+  document.querySelectorAll('#lang button').forEach(b=>b.classList.toggle('on',b.dataset.l===P.lang));
+  $('#ver').textContent=engVer||t('starting');
+  $('#hclear').textContent=t('h_clear');
+  if(!busy)$('#go').textContent=t('go');
+}
 const isList=u=>/[?&]list=/.test(u)&&!/[?&]v=/.test(u)&&!/youtu\.be\//.test(u);
 const cur=()=>$('#url').value.trim();
 function show(v){view=v;['home','opts','hview'].forEach(x=>$('#'+x).hidden=x!==v);window.scrollTo(0,0)}
 function goBack(){
+  if(!$('#dl').hidden){closeDl();return true}
   if(!$('#menu').hidden){closeMenu();return true}
   if(view!=='home'){show('home');return true}
   return false;
 }
-function say(t,err){const m=$('#msg');m.textContent=t;m.className=err?'err':''}
+function say(m,err){const e=$('#msg');e.textContent=m;e.className=err?'err':''}
 function sync(){$('#hint').hidden=!isList(cur())}
-function fmt(t){
-  if(!t)return '';
-  try{return new Date(t).toLocaleString('es',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){return ''}
+function fmt(ts){
+  if(!ts)return '';
+  try{return new Date(ts).toLocaleString(P.lang,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){return ''}
 }
 function row(h){
   const li=document.createElement('li'),b=document.createElement('b'),s=document.createElement('span');
   b.textContent=h.n;
-  s.textContent=[h.w?'Guardado en '+h.w:'',fmt(h.t)].filter(Boolean).join(' · ');
+  s.textContent=[h.w?t('saved_in')+' '+h.w:'',fmt(h.t)].filter(Boolean).join(' · ');
   li.append(b,s);return li;
 }
 function drawRecent(){
@@ -178,12 +228,29 @@ function drawHist(){
 function syncMenu(){$('#mtog').setAttribute('aria-checked',String(!!P.showHist))}
 function closeMenu(){$('#menu').hidden=true;$('#gear').setAttribute('aria-expanded','false')}
 function setBusy(v){
-  busy=v;
-  $('#go').disabled=v;$('#stop').hidden=!v;$('#upd').disabled=v;
+  busy=v;$('#upd').disabled=v;
   $('#go').style.setProperty('--p',v?'0%':'100%');
-  $('#go').textContent=v?'Preparando…':'Descargar';
-  if(!v)$('#line').textContent='';
+  $('#go').textContent=v?t('preparing'):t('go');
 }
+// ----- ventana de descarga (miniatura + barra de progreso)
+function setP(p){
+  p=Math.max(0,Math.min(100,p));
+  $('#pfill').style.width=p+'%';$('#ppct').textContent=Math.round(p)+'%';
+  $('#pbar').setAttribute('aria-valuenow',String(Math.round(p)));
+}
+function openDl(){$('#dl').hidden=false}
+function closeDl(){$('#dl').hidden=true}
+function resetDl(){
+  $('#dimg').hidden=true;$('#dimg').removeAttribute('src');$('#dph').hidden=false;
+  $('#dtitle').textContent=t('dl_get');setP(0);
+  $('#pstat').className='pstat';$('#pst').textContent=t('preparing');
+  $('#dcancel').hidden=false;$('#dclose').hidden=true;
+}
+function endDl(msg,err){
+  $('#pstat').className=err?'pstat err':'pstat';$('#pst').textContent=msg;
+  $('#dcancel').hidden=true;$('#dclose').hidden=false;
+}
+// ----- pantalla de opciones
 function renderOpts(){
   document.querySelectorAll('#otype button').forEach(b=>{
     b.classList.toggle('on',b.dataset.t===sel.type);
@@ -200,45 +267,54 @@ function renderOpts(){
   });
 }
 function openOpts(){
+  if(busy){resetKeep();openDl();return}
   const u=cur();
-  if(!/^https?:\/\//i.test(u)){say('Pega un enlace que empiece con https://',true);return}
-  say('');
-  listMode=isList(u);
+  if(!/^https?:\/\//i.test(u)){say(t('bad_link'),true);return}
+  say('');listMode=isList(u);
   sel=Object.assign({},P);
   if(listMode)sel.type='audio';
   $('#olink').textContent=u;
   renderOpts();show('opts');
 }
+function resetKeep(){} // al reabrir la ventana se conserva lo que ya se ve
 function onEvent(e){
-  if(e.t==='ready'){$('#ver').textContent=e.m}
+  if(e.t==='ready'){engVer=e.m;$('#ver').textContent=e.m}
+  else if(e.t==='meta'){
+    if(e.m)$('#dtitle').textContent=e.m;
+    if(e.n){$('#dimg').src=e.n;$('#dimg').hidden=false;$('#dph').hidden=true}
+  }
   else if(e.t==='progress'){
     const x=/item (\d+) of (\d+)/.exec(e.m);
     if(x){item=+x[1];total=+x[2]}
     let p=Math.max(0,Math.min(100,e.p));
     if(total)p=((item-1)+p/100)/total*100;
+    const conv=/ExtractAudio|Merger|ffmpeg/i.test(e.m);
+    setP(p);
+    $('#pst').textContent=conv?t('converting'):(total?t('song',item,total):t('downloading'));
     $('#go').style.setProperty('--p',p+'%');
-    $('#go').textContent=/ExtractAudio|Merger|ffmpeg/i.test(e.m)?'Convirtiendo…':'Descargando '+Math.round(p)+'%';
-    $('#line').textContent=total?'Canción '+item+' de '+total:e.m.replace(/^\[download\]\s*/,'');
+    $('#go').textContent=conv?t('converting'):t('downloading')+' '+Math.round(p)+'%';
   }
   else if(e.t==='done'){
-    setBusy(false);say('Listo. Ya está en tu teléfono.');
+    setBusy(false);say(t('ok'));
+    setP(100);endDl(t('saved_in')+' '+e.m);
     hist.unshift({n:e.n,w:e.m,t:Date.now()});hist=hist.slice(0,100);
     sv('h',hist);drawRecent();drawHist();
   }
-  else if(e.t==='error'){setBusy(false);say(e.m,true)}
-  else if(e.t==='cancelled'){setBusy(false);say('Descarga cancelada')}
-  else if(e.t==='info'){say(e.m)}
+  else if(e.t==='error'){setBusy(false);say(tm(e.m),true);if(!$('#dl').hidden)endDl(tm(e.m),true)}
+  else if(e.t==='cancelled'){setBusy(false);closeDl();say(t('cancelled'))}
+  else if(e.t==='info'){say(tm(e.m))}
 }
 $('#gear').onclick=()=>{const m=$('#menu');m.hidden=!m.hidden;$('#gear').setAttribute('aria-expanded',String(!m.hidden))};
 document.addEventListener('click',e=>{if(!e.target.closest('#menu,#gear'))closeMenu()});
 $('#mhist').onclick=()=>{closeMenu();drawHist();show('hview')};
 $('#mtog').onclick=()=>{P.showHist=!P.showHist;sv('p',P);syncMenu();drawRecent()};
+document.querySelectorAll('#lang button').forEach(b=>b.onclick=()=>{P.lang=b.dataset.l;sv('p',P);applyLang();drawRecent();drawHist()});
 $('#hback').onclick=()=>show('home');
 $('#oback').onclick=()=>show('home');
 $('#hclear').onclick=()=>{
   const b=$('#hclear');
-  if(!armed){armed=true;b.textContent='Toca otra vez para borrar todo';setTimeout(()=>{armed=false;b.textContent='Borrar historial'},3000);return}
-  hist=[];sv('h',hist);armed=false;b.textContent='Borrar historial';drawHist();drawRecent();
+  if(!armed){armed=true;b.textContent=t('h_sure');setTimeout(()=>{armed=false;b.textContent=t('h_clear')},3000);return}
+  hist=[];sv('h',hist);armed=false;b.textContent=t('h_clear');drawHist();drawRecent();
 };
 document.querySelectorAll('#otype button').forEach(b=>b.onclick=()=>{sel.type=b.dataset.t;renderOpts()});
 document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{sel[c.dataset.k]=c.dataset.v;renderOpts()});
@@ -248,12 +324,13 @@ $('#go').onclick=openOpts;
 $('#ostart').onclick=()=>{
   const u=cur();
   P=Object.assign(P,sel);sv('p',P);
-  item=0;total=0;say('');show('home');setBusy(true);
-  A.start(u,listMode?'list':sel.type,JSON.stringify({vq:sel.vq,af:sel.af,aq:sel.aq}));
+  item=0;total=0;say('');show('home');setBusy(true);resetDl();openDl();
+  A.start(u,listMode?'list':sel.type,JSON.stringify({vq:sel.vq,af:sel.af,aq:sel.aq,lang:P.lang}));
 };
-$('#stop').onclick=()=>A.cancel();
-$('#upd').onclick=()=>{say('Actualizando el motor…');A.update()};
+$('#dcancel').onclick=()=>{$('#pst').textContent=t('preparing');A.cancel()};
+$('#dclose').onclick=closeDl;
+$('#upd').onclick=()=>{say(t('updating'));A.update()};
 function takeShared(){const l=A.pending();if(l){$('#url').value=l;sync();show('home')}}
-$('#ver').textContent=A.ver()||'iniciando…';
-syncMenu();drawRecent();drawHist();sync();takeShared();
+engVer=A.ver()||'';
+applyLang();syncMenu();drawRecent();drawHist();sync();takeShared();
 </script></body></html>
