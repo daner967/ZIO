@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.PowerManager
 import android.provider.MediaStore
+import android.system.Os
 import android.util.Base64
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
@@ -44,6 +45,12 @@ object Zio {
         if (started) return
         started = true
         app = a
+        // Carpeta temporal propia: el Python de yt-dlp no trae una en Android y fallaba con "Read-only file system"
+        try {
+            val tmp = File(app.cacheDir, "ytmp").apply { mkdirs() }
+            tmp.listFiles()?.forEach { it.deleteRecursively() }
+            for (k in listOf("TMPDIR", "TEMP", "TMP")) Os.setenv(k, tmp.absolutePath, true)
+        } catch (e: Exception) { }
         pool.execute { startEngine() }
     }
 
@@ -180,6 +187,9 @@ object Zio {
             val req = JSONObject().put("url", url).put("mode", mode).put("list", isList).put("opts", saveOpts)
 
             val r = YoutubeDLRequest(url)
+            // yt-dlp prueba algunos formatos antes de bajarlos y para eso crea un archivo temporal: se le da una carpeta propia
+            r.addOption("-P", "temp:" + File(app.cacheDir, "ytmp").apply { mkdirs() }.absolutePath)
+            r.addOption("--cache-dir", File(app.cacheDir, "ytcache").apply { mkdirs() }.absolutePath)
             r.addOption("--windows-filenames")
             r.addOption("--no-mtime")
             r.addOption("--embed-metadata")                 // canal, título, etc. dentro del archivo
