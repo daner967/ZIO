@@ -22,6 +22,17 @@ android {
         versionName = "1.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
+    buildTypes {
+        release {
+            // Misma firma que antes, así se instala encima. Sin R8: yt-dlp usa reflexión y se rompería
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
