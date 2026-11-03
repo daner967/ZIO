@@ -6,9 +6,12 @@ import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -74,6 +77,27 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Pinta las barras del teléfono del color del tema. lightIcons = iconos claros (para fondos oscuros). */
+    fun applyBars(bg: String, lightIcons: Boolean) {
+        runOnUiThread {
+            try {
+                val c = Color.parseColor(bg)
+                window.statusBarColor = c
+                window.navigationBarColor = c
+                web.setBackgroundColor(c)
+                if (Build.VERSION.SDK_INT >= 30) {
+                    val m = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    window.insetsController?.setSystemBarsAppearance(if (lightIcons) 0 else m, m)
+                } else {
+                    var f = window.decorView.systemUiVisibility
+                    val m = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                    f = if (lightIcons) f and m.inv() else f or m
+                    window.decorView.systemUiVisibility = f
+                }
+            } catch (e: Exception) { }
+        }
+    }
+
     /** Mantiene la pantalla encendida mientras hay una descarga. */
     fun keepOn(on: Boolean) {
         runOnUiThread {
@@ -96,6 +120,7 @@ class MainActivity : Activity() {
             Zio.start(url, mode, opts)
         }
         @JavascriptInterface fun cancel() { Zio.cancel() }
+        @JavascriptInterface fun bars(bg: String, lightIcons: Boolean) { applyBars(bg, lightIcons) }
         @JavascriptInterface fun update() { Zio.update() }
         @JavascriptInterface fun ver(): String = Zio.version
         @JavascriptInterface fun live(): String = Zio.live()
