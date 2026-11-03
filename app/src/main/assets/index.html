@@ -55,6 +55,7 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
 .chip{min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);font-weight:600}
 .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
 .chip:disabled{opacity:.4}
+.rsw{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:52px;padding:0 14px;border:1.5px solid var(--line);background:var(--card);border-radius:14px;font-weight:600;text-align:left}
 .note{margin:8px 2px 0;color:var(--mute);font-size:.88rem}
 .modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(19,11,36,.74)}
 .sheet{width:100%;max-width:26rem;background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:16px;box-shadow:0 18px 48px rgba(0,0,0,.4)}
@@ -132,13 +133,19 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
       <button class="chip" data-k="af" data-v="flac">FLAC</button>
       <button class="chip" data-k="af" data-v="wav">WAV</button>
     </div>
-    <p class="note" id="anote" data-i="af_note" hidden></p>
+    <p class="note" id="anote" hidden></p>
     <h3 class="sec" data-i="aq_t">Calidad del audio</h3>
     <div class="chips">
       <button class="chip" data-k="aq" data-v="best" data-i="best">Mejor</button>
       <button class="chip" data-k="aq" data-v="med" data-i="med">Media</button>
       <button class="chip" data-k="aq" data-v="low" data-i="low">Baja</button>
     </div>
+  </div>
+
+  <div id="sth">
+    <h3 class="sec" data-i="th_t">Miniatura</h3>
+    <button class="rsw" id="othumb" role="switch" aria-checked="true"><span data-i="th_sw">Guardar también como imagen aparte</span><i class="sw"></i></button>
+    <p class="note" data-i="th_note"></p>
   </div>
 
   <button class="go" id="ostart" data-i="go">Descargar</button>
@@ -169,13 +176,13 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
 
 <script>
 const T={
-es:{lead:'Pega un enlace de YouTube y guarda el audio o el video, con su miniatura, en tu teléfono.',ph:'Enlace del video o de la lista',paste:'Pegar',hint:'Lista detectada: se guardan hasta 25 canciones en audio, dentro de un ZIP.',go:'Descargar',recent:'Recientes',engine:'Motor yt-dlp',upd:'Actualizar motor',starting:'iniciando…',gear:'Ajustes',back:'Volver',m_hist:'Historial de descargas',m_tog:'Mostrar historial en inicio',m_lang:'Idioma',o_title:'Opciones de descarga',o_list:'Lista detectada: solo audio, hasta 25 canciones en un ZIP.',vq_t:'Calidad del video',max:'Máxima',vq_note:'Si el video no llega a esa calidad, se baja la más alta que tenga.',af_t:'Formato del audio',af_note:'Formato sin compresión: pesa mucho más y no mejora el audio original de YouTube.',aq_t:'Calidad del audio',best:'Mejor',med:'Media',low:'Baja',h_title:'Historial de descargas',h_empty:'Todavía no hay descargas.',h_clear:'Borrar historial',h_sure:'Toca otra vez para borrar todo',saved_in:'Guardado en',dl_get:'Obteniendo información…',preparing:'Preparando…',downloading:'Descargando',converting:'Convirtiendo…',song:'Canción {a} de {b}',cancel:'Cancelar',close:'Cerrar',ok:'Listo. Ya está en tu teléfono.',cancelled:'Descarga cancelada',bad_link:'Pega un enlace que empiece con https://',updating:'Actualizando el motor…',e_init_wait:'El motor sigue iniciando. Inténtalo en unos segundos.',e_init_fail:'No se pudo iniciar el motor: ',e_upd_fail:'No se pudo actualizar: ',i_updated:'Motor actualizado',e_create:'No se pudo crear el archivo',e_unknown:'Error desconocido'},
-en:{lead:'Paste a YouTube link and save the audio or video, with its thumbnail, to your phone.',ph:'Video or playlist link',paste:'Paste',hint:'Playlist detected: up to 25 songs are saved as audio inside a ZIP.',go:'Download',recent:'Recent',engine:'yt-dlp engine',upd:'Update engine',starting:'starting…',gear:'Settings',back:'Back',m_hist:'Download history',m_tog:'Show history on home',m_lang:'Language',o_title:'Download options',o_list:'Playlist detected: audio only, up to 25 songs in a ZIP.',vq_t:'Video quality',max:'Maximum',vq_note:"If the video doesn't reach that quality, the highest available is downloaded.",af_t:'Audio format',af_note:"Uncompressed format: much larger files, and it doesn't improve the original YouTube audio.",aq_t:'Audio quality',best:'Best',med:'Medium',low:'Low',h_title:'Download history',h_empty:'No downloads yet.',h_clear:'Clear history',h_sure:'Tap again to clear everything',saved_in:'Saved in',dl_get:'Getting info…',preparing:'Preparing…',downloading:'Downloading',converting:'Converting…',song:'Song {a} of {b}',cancel:'Cancel',close:'Close',ok:"Done. It's on your phone.",cancelled:'Download cancelled',bad_link:'Paste a link that starts with https://',updating:'Updating the engine…',e_init_wait:'The engine is still starting. Try again in a few seconds.',e_init_fail:"Couldn't start the engine: ",e_upd_fail:"Couldn't update: ",i_updated:'Engine updated',e_create:"Couldn't create the file",e_unknown:'Unknown error'}
+es:{lead:'Pega un enlace de YouTube y guarda el audio o el video, con su miniatura, en tu teléfono.',ph:'Enlace del video o de la lista',paste:'Pegar',hint:'Lista detectada: se baja toda la lista en una carpeta con su nombre.',go:'Descargar',recent:'Recientes',engine:'Motor yt-dlp',upd:'Actualizar motor',starting:'iniciando…',gear:'Ajustes',back:'Volver',m_hist:'Historial de descargas',m_tog:'Mostrar historial en inicio',m_lang:'Idioma',o_title:'Opciones de descarga',o_list:'Lista detectada: se baja toda la lista y se guarda en una carpeta con su nombre.',th_t:'Miniatura',th_sw:'Guardar también como imagen aparte',th_note:'La miniatura aparece siempre dentro del audio o video, si el formato lo permite.',wav_note:'WAV no admite portada incrustada.',saving:'Guardando…',vq_t:'Calidad del video',max:'Máxima',vq_note:'Si el video no llega a esa calidad, se baja la más alta que tenga.',af_t:'Formato del audio',af_note:'Formato sin compresión: pesa mucho más y no mejora el audio original de YouTube.',aq_t:'Calidad del audio',best:'Mejor',med:'Media',low:'Baja',h_title:'Historial de descargas',h_empty:'Todavía no hay descargas.',h_clear:'Borrar historial',h_sure:'Toca otra vez para borrar todo',saved_in:'Guardado en',dl_get:'Obteniendo información…',preparing:'Preparando…',downloading:'Descargando',converting:'Convirtiendo…',song:'Canción {a} de {b}',cancel:'Cancelar',close:'Cerrar',ok:'Listo. Ya está en tu teléfono.',cancelled:'Descarga cancelada',bad_link:'Pega un enlace que empiece con https://',updating:'Actualizando el motor…',e_init_wait:'El motor sigue iniciando. Inténtalo en unos segundos.',e_init_fail:'No se pudo iniciar el motor: ',e_upd_fail:'No se pudo actualizar: ',i_updated:'Motor actualizado',e_create:'No se pudo crear el archivo',e_unknown:'Error desconocido'},
+en:{lead:'Paste a YouTube link and save the audio or video, with its thumbnail, to your phone.',ph:'Video or playlist link',paste:'Paste',hint:'Playlist detected: the whole list is saved in a folder with its name.',go:'Download',recent:'Recent',engine:'yt-dlp engine',upd:'Update engine',starting:'starting…',gear:'Settings',back:'Back',m_hist:'Download history',m_tog:'Show history on home',m_lang:'Language',o_title:'Download options',o_list:'Playlist detected: the whole list is downloaded into a folder with its name.',th_t:'Thumbnail',th_sw:'Also save as a separate image',th_note:'The thumbnail always appears inside the audio or video, when the format allows it.',wav_note:"WAV doesn't support embedded cover art.",saving:'Saving…',vq_t:'Video quality',max:'Maximum',vq_note:"If the video doesn't reach that quality, the highest available is downloaded.",af_t:'Audio format',af_note:"Uncompressed format: much larger files, and it doesn't improve the original YouTube audio.",aq_t:'Audio quality',best:'Best',med:'Medium',low:'Low',h_title:'Download history',h_empty:'No downloads yet.',h_clear:'Clear history',h_sure:'Tap again to clear everything',saved_in:'Saved in',dl_get:'Getting info…',preparing:'Preparing…',downloading:'Downloading',converting:'Converting…',song:'Song {a} of {b}',cancel:'Cancel',close:'Close',ok:"Done. It's on your phone.",cancelled:'Download cancelled',bad_link:'Paste a link that starts with https://',updating:'Updating the engine…',e_init_wait:'The engine is still starting. Try again in a few seconds.',e_init_fail:"Couldn't start the engine: ",e_upd_fail:"Couldn't update: ",i_updated:'Engine updated',e_create:"Couldn't create the file",e_unknown:'Unknown error'}
 };
 const $=s=>document.querySelector(s),A=window.Android;
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
-let P=Object.assign({type:'audio',vq:'720',af:'mp3',aq:'best',showHist:true,lang:'es'},ld('p',{}));
+let P=Object.assign({type:'audio',vq:'720',af:'mp3',aq:'best',thumb:true,showHist:true,lang:'es'},ld('p',{}));
 let hist=ld('h',[]),sel={},view='home',busy=false,item=0,total=0,listMode=false,armed=false,engVer='';
 const t=(k,a,b)=>{let s=(T[P.lang]||T.es)[k];if(s===undefined)s=T.es[k]||k;return s.replace('{a}',a).replace('{b}',b)};
 // mensajes que llegan de la app: "codigo|detalle" se traducen; el resto (errores de yt-dlp) se muestra tal cual
@@ -254,35 +261,35 @@ function endDl(msg,err){
 function renderOpts(){
   document.querySelectorAll('#otype button').forEach(b=>{
     b.classList.toggle('on',b.dataset.t===sel.type);
-    b.disabled=listMode&&b.dataset.t==='video';
   });
   $('#sv').hidden=sel.type!=='video';
   $('#sa').hidden=sel.type!=='audio';
   $('#olist').hidden=!listMode;
   const raw=sel.af==='flac'||sel.af==='wav';
   $('#anote').hidden=!raw;
+  $('#anote').textContent=t('af_note')+(sel.af==='wav'?' '+t('wav_note'):'');
+  $('#othumb').setAttribute('aria-checked',String(!!sel.thumb));
   document.querySelectorAll('.chip').forEach(c=>{
     c.classList.toggle('on',sel[c.dataset.k]===c.dataset.v);
     c.disabled=raw&&c.dataset.k==='aq';
   });
 }
 function openOpts(){
-  if(busy){resetKeep();openDl();return}
+  if(busy){openDl();return}
   const u=cur();
   if(!/^https?:\/\//i.test(u)){say(t('bad_link'),true);return}
   say('');listMode=isList(u);
   sel=Object.assign({},P);
-  if(listMode)sel.type='audio';
   $('#olink').textContent=u;
   renderOpts();show('opts');
 }
-function resetKeep(){} // al reabrir la ventana se conserva lo que ya se ve
 function onEvent(e){
   if(e.t==='ready'){engVer=e.m;$('#ver').textContent=e.m}
   else if(e.t==='meta'){
     if(e.m)$('#dtitle').textContent=e.m;
     if(e.n){$('#dimg').src=e.n;$('#dimg').hidden=false;$('#dph').hidden=true}
   }
+  else if(e.t==='progress'&&e.m.indexOf('[saving]')===0){$('#pst').textContent=t('saving')}
   else if(e.t==='progress'){
     const x=/item (\d+) of (\d+)/.exec(e.m);
     if(x){item=+x[1];total=+x[2]}
@@ -321,11 +328,12 @@ document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{sel[c.dataset.k]=c.
 $('#url').oninput=sync;
 $('#paste').onclick=()=>{$('#url').value=A.clip().trim();sync()};
 $('#go').onclick=openOpts;
+$('#othumb').onclick=()=>{sel.thumb=!sel.thumb;renderOpts()};
 $('#ostart').onclick=()=>{
   const u=cur();
   P=Object.assign(P,sel);sv('p',P);
   item=0;total=0;say('');show('home');setBusy(true);resetDl();openDl();
-  A.start(u,listMode?'list':sel.type,JSON.stringify({vq:sel.vq,af:sel.af,aq:sel.aq,lang:P.lang}));
+  A.start(u,sel.type,JSON.stringify({vq:sel.vq,af:sel.af,aq:sel.aq,lang:P.lang,list:listMode,thumb:!!sel.thumb}));
 };
 $('#dcancel').onclick=()=>{$('#pst').textContent=t('preparing');A.cancel()};
 $('#dclose').onclick=closeDl;

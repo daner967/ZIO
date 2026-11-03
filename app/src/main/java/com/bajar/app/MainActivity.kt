@@ -17,8 +17,6 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executors
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 class MainActivity : Activity() {
     private lateinit var web: WebView
@@ -95,46 +93,81 @@ class MainActivity : Activity() {
             // Opciones elegidas en la pantalla de descarga (solo valores conocidos)
             val vq = o.optString("vq").takeIf { it in setOf("max", "1080", "720", "480", "360") } ?: "720"
             val af = o.optString("af").takeIf { it in setOf("mp3", "m4a", "opus", "flac", "wav") } ?: "mp3"
-            val en = o.optString("lang") == "en"
             val aq = o.optString("aq").takeIf { it in setOf("best", "med", "low") } ?: "best"
+            val en = o.optString("lang") == "en"
+            val isList = o.optBoolean("list")
+            val thumb = o.optBoolean("thumb", true) // guardar también la miniatura como imagen aparte
+            val video = mode == "video"
+            val dir = work.absolutePath
 
             val r = YoutubeDLRequest(url)
             r.addOption("--windows-filenames")
             r.addOption("--no-mtime")
-            r.addOption("--write-thumbnail") // la miniatura se guarda como imagen .jpg
             r.addOption("--convert-thumbnails", "jpg")
-            val dir = work.absolutePath
-            if (mode == "video") {
+            if (thumb) r.addOption("--write-thumbnail")                  // imagen aparte
+            if (video || af != "wav") r.addOption("--embed-thumbnail")   // portada dentro del archivo
+            if (isList) {
+                r.addOption("--yes-playlist")
+                r.addOption("--ignore-errors")
+                r.addOption("-o", "$dir/%(playlist_title).80s/%(playlist_index)02d - %(title).100s.%(ext)s")
+            } else {
                 r.addOption("--no-playlist")
+                r.addOption("-o", "$dir/%(title).100s.%(ext)s")
+            }
+            if (video) {
                 r.addOption("-f", "bv*+ba/b")
                 r.addOption("-S", if (vq == "max") "res,ext" else "res:$vq,ext")
                 r.addOption("--merge-output-format", "mp4")
-                r.addOption("-o", "$dir/%(title).100s.%(ext)s")
-            } else { // audio suelto o lista (solo audio, máximo 25, todo en un ZIP)
-                if (mode == "list") {
-                    r.addOption("--yes-playlist")
-                    r.addOption("--playlist-end", "25")
-                    r.addOption("--ignore-errors")
-                    r.addOption("-o", "$dir/%(playlist_title).80s/%(playlist_index)02d - %(title).100s.%(ext)s")
-                } else {
-                    r.addOption("--no-playlist")
-                    r.addOption("-o", "$dir/%(title).100s.%(ext)s")
-                }
+            } else {
                 val cap = when (aq) { "med" -> "[abr<=140]"; "low" -> "[abr<=75]"; else -> "" }
                 r.addOption("-f", "ba$cap/ba/b")
                 r.addOption("-x")
                 r.addOption("--audio-format", af)
-                if (af == "mp3") {
-                    r.addOption("--audio-quality", when (aq) { "med" -> "128K"; "low" -> "64K"; else -> "0" })
-                    r.addOption("--embed-thumbnail") // en MP3 la miniatura también queda como portada
+                if (af == "mp3") r.addOption("--audio-quality", when (aq) { "med" -> "128K"; "low" -> "64K"; else -> "0" })
+            }
+
+            // Todo va a Download/ZIO, con audios y videos en subcarpetas separadas
+            val folder = if (video) "Download/ZIO/Videos" else "Download/ZIO/Audios"
+            val media = setOf("mp3", "m4a", "opus", "flac", "wav", "mp4", "mkv", "webm")
+            val imgs = setOf("jpg", "jpeg", "png", "webp")
+            val tmpName = Regex("\\.f\\d+\\.[a-z0-9]+$|\\.temp\\.[a-z0-9]+$") // restos intermedios de yt-dlp
+            val sent = HashSet<String>()
+            var savedCount = 0
+            var totalItems = 0
+            var playlistName = ""
+
+            // Listas: cada canción/video se guarda en cuanto termina, para no llenar la memoria del teléfono
+            fun flush(prefix: String?) {
+                val d = work.listFiles { f -> f.isDirectory }?.firstOrNull() ?: return
+                playlistName = d.name
+                val dest = "$folder/${d.name}"
+                val fs = d.listFiles { f -> f.isFile && (prefix == null || f.name.startsWith(prefix)) }
+                    .orEmpty().sortedBy { it.name }
+                for (f in fs) {
+                    if (tmpName.containsMatchIn(f.name)) continue
+                    val ext = f.extension.lowercase()
+                    val isMedia = ext in media
+                    val isImg = ext in imgs
+                    if (!isMedia && !(isImg && thumb)) { if (isImg) f.delete(); continue }
+                    if (isMedia) emit("progress", "[saving]", 100f)
+                    save(f, mimeOf(f), dest)
+                    if (isMedia) savedCount++
+                    f.delete()
                 }
             }
 
-            val sent = HashSet<String>()
             var err: String? = null
             try {
                 YoutubeDL.getInstance().execute(r, "dl") { p, _, line ->
                     val ln = "$line"
+                    if (isList) {
+                        val m = Regex("Downloading item (\\d+) of (\\d+)").find(ln)
+                        if (m != null) {
+                            val n = m.groupValues[1].toInt()
+                            totalItems = m.groupValues[2].toInt()
+                            if (n > 1) flush("%02d - ".format(n - 1))
+                        }
+                    }
                     // al empezar cada descarga se envía la miniatura y el título a la ventana de progreso
                     if (ln.startsWith("[download] Destination:")) meta(work, ln, sent)
                     emit("progress", ln, p)
@@ -144,34 +177,25 @@ class MainActivity : Activity() {
             }
             if (cancelled) { emit("cancelled"); return }
 
-            val media = setOf("mp3", "m4a", "opus", "flac", "wav", "mp4", "mkv", "webm")
-            val imgs = setOf("jpg", "jpeg", "png", "webp")
-            val all = work.walkTopDown().filter { it.isFile }.sortedBy { it.name }.toList()
-            val files = all.filter { it.extension.lowercase() in media }
-            val thumbs = all.filter { it.extension.lowercase() in imgs }
-            if (files.isEmpty()) { emit("error", nice(err)); return }
+            val coverFail = err?.let { it.contains("thumbnail", true) || it.contains("mutagen", true) || it.contains("embed", true) } == true
+            val noCover = if (coverFail) (if (en) " · cover not embedded" else " · portada no incrustada") else ""
 
-            // Todo va a Download/ZIO, con audios y videos en subcarpetas separadas
-            val folder = if (mode == "video") "Download/ZIO/Videos" else "Download/ZIO/Audios"
-
-            if (mode == "list") {
-                val title = work.listFiles { f -> f.isDirectory }?.firstOrNull()?.name ?: "playlist"
-                val zip = File(work, "$title.zip")
-                ZipOutputStream(zip.outputStream().buffered()).use { z ->
-                    z.setLevel(0)
-                    (files + thumbs).forEach { f ->
-                        z.putNextEntry(ZipEntry("$title/${f.name}"))
-                        f.inputStream().use { it.copyTo(z) }
-                        z.closeEntry()
-                    }
-                }
-                val extra = if (err != null) (if (en) ", some failed" else ", algunas fallaron") else ""
-                emit("done", save(zip, "application/zip", folder), n = "${zip.name} (${files.size} ${if (en) "songs" else "canciones"}$extra)")
+            if (isList) {
+                flush(null)
+                if (savedCount == 0) { emit("error", nice(err)); return }
+                val what = if (video) "videos" else (if (en) "songs" else "canciones")
+                val failed = if (totalItems > savedCount) (if (en) ", ${totalItems - savedCount} failed" else ", ${totalItems - savedCount} fallaron") else ""
+                emit("done", "$folder/$playlistName", n = "$playlistName ($savedCount $what$failed)$noCover")
             } else {
+                val all = work.walkTopDown().filter { it.isFile }.sortedBy { it.name }.toList()
+                val files = all.filter { it.extension.lowercase() in media && !tmpName.containsMatchIn(it.name) }
+                val thumbs = if (thumb) all.filter { it.extension.lowercase() in imgs } else emptyList()
+                if (files.isEmpty()) { emit("error", nice(err)); return }
                 val f = files.first()
                 save(f, mimeOf(f), folder)
                 thumbs.forEach { save(it, mimeOf(it), folder) }
-                emit("done", folder, n = if (thumbs.isEmpty()) f.name else "${f.name} + ${if (en) "thumbnail" else "miniatura"}")
+                val extra = if (thumbs.isEmpty()) "" else (if (en) " + thumbnail" else " + miniatura")
+                emit("done", folder, n = f.name + extra + noCover)
             }
         } catch (e: Exception) {
             emit("error", nice(e.message))
