@@ -12,6 +12,7 @@ import android.util.Base64
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -47,9 +48,11 @@ object Zio {
     }
 
     // ------------------------------------------------------------ comunicación con la pantalla
-    fun emit(t: String, m: String = "", p: Float = 0f, n: String = "") {
+    fun emit(t: String, m: String = "", p: Float = 0f, n: String = "", x: JSONObject? = null) {
         val pd = if (p.isNaN() || p.isInfinite()) 0.0 else p.toDouble()
-        val j = JSONObject().put("t", t).put("m", m).put("p", pd).put("n", n).toString()
+        val o = JSONObject().put("t", t).put("m", m).put("p", pd).put("n", n)
+        if (x != null) o.put("x", x)
+        val j = o.toString()
         if (running) {
             if (t == "meta") lastMeta = j
             else if (t == "progress" && m != "[saving]") lastProg = j
@@ -163,9 +166,25 @@ object Zio {
             val video = mode == "video"
             val dir = work.absolutePath
 
+            // Nombre de archivo: "Canal - Título" (en bytes, para no pasar el límite de Android).
+            // Al bajar de nuevo un elemento de una lista, vuelve a su carpeta y a su número.
+            val unk = if (en) "Unknown" else "Canal"
+            val who = "%(channel,uploader|$unk).60B"
+            val ttl = "%(title).110B"
+            val sub = o.optString("sub").replace(Regex("[\\/]"), "_").replace("..", "_").trim().take(120)
+            val idx = o.optInt("idx", 0)
+            val pre = if (!isList && idx > 0) "%02d - ".format(idx) else ""
+            val saveOpts = JSONObject().put("vq", vq).put("af", af).put("aq", aq).put("thumb", thumb)
+            if (sub.isNotEmpty()) saveOpts.put("sub", sub)
+            if (idx > 0) saveOpts.put("idx", idx)
+            val req = JSONObject().put("url", url).put("mode", mode).put("list", isList).put("opts", saveOpts)
+
             val r = YoutubeDLRequest(url)
             r.addOption("--windows-filenames")
             r.addOption("--no-mtime")
+            r.addOption("--embed-metadata")                 // canal, título, etc. dentro del archivo
+            r.addOption("--write-info-json")                // datos del video para el historial (no se guardan en Descargas)
+            r.addOption("--no-write-playlist-metafiles")
             r.addOption("-N", "4") // fragmentos en paralelo cuando el formato los usa
             r.addOption("--convert-thumbnails", "jpg")
             if (thumb) r.addOption("--write-thumbnail")                // imagen aparte
@@ -173,10 +192,10 @@ object Zio {
             if (isList) {
                 r.addOption("--yes-playlist")
                 r.addOption("--ignore-errors")
-                r.addOption("-o", "$dir/%(playlist_title).80s/%(playlist_index)02d - %(title).100s.%(ext)s")
+                r.addOption("-o", "$dir/%(playlist_title).80B/%(playlist_index)02d - $who - $ttl.%(ext)s")
             } else {
                 r.addOption("--no-playlist")
-                r.addOption("-o", "$dir/%(title).100s.%(ext)s")
+                r.addOption("-o", "$dir/$pre$who - $ttl.%(ext)s")
             }
             if (video) {
                 r.addOption("-f", "bv*+ba/b")
@@ -192,6 +211,8 @@ object Zio {
 
             // Todo va a Download/ZIO, con audios y videos en subcarpetas separadas
             val folder = if (video) "Download/ZIO/Videos" else "Download/ZIO/Audios"
+            val saveDir = if (sub.isNotEmpty()) "$folder/$sub" else folder
+            val items = JSONArray()
             val sent = HashSet<String>()
             var savedCount = 0
             var totalItems = 0
@@ -214,7 +235,10 @@ object Zio {
                     if (!isMedia && !(isImg && thumb)) { if (isImg) f.delete(); continue }
                     if (isMedia) emit("progress", "[saving]", 100f)
                     save(f, mimeOf(f), dest)
-                    if (isMedia) savedCount++
+                    if (isMedia) {
+                        savedCount++
+                        readItem(File(d, f.nameWithoutExtension + ".info.json"))?.let { items.put(it) }
+                    }
                     f.delete()
                 }
             }
@@ -266,7 +290,8 @@ object Zio {
                 val what = if (video) "videos" else (if (en) "songs" else "canciones")
                 val failed = if (totalItems > savedCount) (if (en) ", ${totalItems - savedCount} failed" else ", ${totalItems - savedCount} fallaron") else ""
                 val n = "$playlistName ($savedCount $what$failed)$noCover"
-                emit("done", "$folder/$playlistName", n = n)
+                val x = JSONObject().put("req", req).put("pl", playlistName).put("items", items)
+                emit("done", "$folder/$playlistName", n = n, x = x)
                 notifyEnd((if (en) "Done: " else "Listo: ") + n)
             } else {
                 val all = work.walkTopDown().filter { it.isFile }.sortedBy { it.name }.toList()
@@ -278,11 +303,13 @@ object Zio {
                     return
                 }
                 val f = files.first()
-                save(f, mimeOf(f), folder)
-                thumbs.forEach { save(it, mimeOf(it), folder) }
+                save(f, mimeOf(f), saveDir)
+                thumbs.forEach { save(it, mimeOf(it), saveDir) }
+                val info = readItem(File(f.parentFile, f.nameWithoutExtension + ".info.json"))
                 val extra = if (thumbs.isEmpty()) "" else (if (en) " + thumbnail" else " + miniatura")
                 val n = f.name + extra + noCover
-                emit("done", folder, n = n)
+                val x = JSONObject().put("req", req).put("ch", info?.optString("c") ?: "")
+                emit("done", saveDir, n = n, x = x)
                 notifyEnd((if (en) "Done: " else "Listo: ") + n)
             }
         } catch (e: Exception) {
@@ -359,6 +386,22 @@ object Zio {
         } catch (e: Exception) {
             try { res.delete(u, null, null) } catch (x: Exception) { }
             throw e
+        }
+    }
+
+    // Lee los datos de un video que yt-dlp dejó en su archivo .info.json: enlace, título, canal y posición en la lista
+    private fun readItem(f: File): JSONObject? {
+        return try {
+            if (!f.exists()) return null
+            val j = JSONObject(f.readText())
+            val s = { k: String -> if (j.isNull(k)) "" else j.optString(k) }
+            JSONObject()
+                .put("u", s("webpage_url").ifEmpty { s("original_url") })
+                .put("t", s("title"))
+                .put("c", s("channel").ifEmpty { s("uploader") })
+                .put("i", j.optInt("playlist_index", 0))
+        } catch (e: Exception) {
+            null
         }
     }
 

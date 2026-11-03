@@ -57,6 +57,11 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
 .chip:disabled{opacity:.4}
 .rsw{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:52px;padding:0 14px;border:1.5px solid var(--line);background:var(--card);border-radius:14px;font-weight:600;text-align:left}
 .note{margin:8px 2px 0;color:var(--mute);font-size:.88rem}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.mini{min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--acc);background:none;color:var(--accT);font-weight:600;font-size:.9rem}
+.items{margin:10px 0 0;padding-left:12px;border-left:3px solid var(--line)}
+.items li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:0}
+.items li div{min-width:0}
 .modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(19,11,36,.74)}
 .sheet{width:100%;max-width:26rem;background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:16px;box-shadow:0 18px 48px rgba(0,0,0,.4)}
 .thumb{position:relative;aspect-ratio:16/9;border-radius:16px;background:var(--acc);display:grid;place-items:center;overflow:hidden}
@@ -176,12 +181,13 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
 
 <script>
 const T={
-es:{lead:'Pega un enlace de YouTube y guarda el audio o el video, con su miniatura, en tu teléfono.',ph:'Enlace del video o de la lista',paste:'Pegar',hint:'Lista detectada: se baja toda la lista en una carpeta con su nombre.',go:'Descargar',recent:'Recientes',engine:'Motor yt-dlp',upd:'Actualizar motor',starting:'iniciando…',cancelling:'Cancelando…',gear:'Ajustes',back:'Volver',m_hist:'Historial de descargas',m_tog:'Mostrar historial en inicio',m_lang:'Idioma',o_title:'Opciones de descarga',o_list:'Lista detectada: se baja toda la lista y se guarda en una carpeta con su nombre.',th_t:'Miniatura',th_sw:'Guardar también como imagen aparte',th_note:'La miniatura aparece siempre dentro del audio o video, si el formato lo permite.',wav_note:'WAV no admite portada incrustada.',saving:'Guardando…',vq_t:'Calidad del video',max:'Máxima',vq_note:'Si el video no llega a esa calidad, se baja la más alta que tenga.',af_t:'Formato del audio',af_note:'Formato sin compresión: pesa mucho más y no mejora el audio original de YouTube.',aq_t:'Calidad del audio',best:'Mejor',med:'Media',low:'Baja',h_title:'Historial de descargas',h_empty:'Todavía no hay descargas.',h_clear:'Borrar historial',h_sure:'Toca otra vez para borrar todo',saved_in:'Guardado en',dl_get:'Obteniendo información…',preparing:'Preparando…',downloading:'Descargando',converting:'Convirtiendo…',song:'Canción {a} de {b}',cancel:'Cancelar',close:'Cerrar',ok:'Listo. Ya está en tu teléfono.',cancelled:'Descarga cancelada',bad_link:'Pega un enlace que empiece con https://',updating:'Actualizando el motor…',e_init_wait:'El motor sigue iniciando. Inténtalo en unos segundos.',e_init_fail:'No se pudo iniciar el motor: ',e_upd_fail:'No se pudo actualizar: ',i_updated:'Motor actualizado',e_create:'No se pudo crear el archivo',e_unknown:'Error desconocido'},
-en:{lead:'Paste a YouTube link and save the audio or video, with its thumbnail, to your phone.',ph:'Video or playlist link',paste:'Paste',hint:'Playlist detected: the whole list is saved in a folder with its name.',go:'Download',recent:'Recent',engine:'yt-dlp engine',upd:'Update engine',starting:'starting…',cancelling:'Cancelling…',gear:'Settings',back:'Back',m_hist:'Download history',m_tog:'Show history on home',m_lang:'Language',o_title:'Download options',o_list:'Playlist detected: the whole list is downloaded into a folder with its name.',th_t:'Thumbnail',th_sw:'Also save as a separate image',th_note:'The thumbnail always appears inside the audio or video, when the format allows it.',wav_note:"WAV doesn't support embedded cover art.",saving:'Saving…',vq_t:'Video quality',max:'Maximum',vq_note:"If the video doesn't reach that quality, the highest available is downloaded.",af_t:'Audio format',af_note:"Uncompressed format: much larger files, and it doesn't improve the original YouTube audio.",aq_t:'Audio quality',best:'Best',med:'Medium',low:'Low',h_title:'Download history',h_empty:'No downloads yet.',h_clear:'Clear history',h_sure:'Tap again to clear everything',saved_in:'Saved in',dl_get:'Getting info…',preparing:'Preparing…',downloading:'Downloading',converting:'Converting…',song:'Song {a} of {b}',cancel:'Cancel',close:'Close',ok:"Done. It's on your phone.",cancelled:'Download cancelled',bad_link:'Paste a link that starts with https://',updating:'Updating the engine…',e_init_wait:'The engine is still starting. Try again in a few seconds.',e_init_fail:"Couldn't start the engine: ",e_upd_fail:"Couldn't update: ",i_updated:'Engine updated',e_create:"Couldn't create the file",e_unknown:'Unknown error'}
+es:{lead:'Pega un enlace de YouTube y guarda el audio o el video, con su miniatura, en tu teléfono.',ph:'Enlace del video o de la lista',paste:'Pegar',hint:'Lista detectada: se baja toda la lista en una carpeta con su nombre.',go:'Descargar',recent:'Recientes',engine:'Motor yt-dlp',upd:'Actualizar motor',starting:'iniciando…',cancelling:'Cancelando…',redo:'Descargar de nuevo',redo_short:'De nuevo',items:'Elementos',gear:'Ajustes',back:'Volver',m_hist:'Historial de descargas',m_tog:'Mostrar historial en inicio',m_lang:'Idioma',o_title:'Opciones de descarga',o_list:'Lista detectada: se baja toda la lista y se guarda en una carpeta con su nombre.',th_t:'Miniatura',th_sw:'Guardar también como imagen aparte',th_note:'La miniatura aparece siempre dentro del audio o video, si el formato lo permite.',wav_note:'WAV no admite portada incrustada.',saving:'Guardando…',vq_t:'Calidad del video',max:'Máxima',vq_note:'Si el video no llega a esa calidad, se baja la más alta que tenga.',af_t:'Formato del audio',af_note:'Formato sin compresión: pesa mucho más y no mejora el audio original de YouTube.',aq_t:'Calidad del audio',best:'Mejor',med:'Media',low:'Baja',h_title:'Historial de descargas',h_empty:'Todavía no hay descargas.',h_clear:'Borrar historial',h_sure:'Toca otra vez para borrar todo',saved_in:'Guardado en',dl_get:'Obteniendo información…',preparing:'Preparando…',downloading:'Descargando',converting:'Convirtiendo…',song:'Canción {a} de {b}',cancel:'Cancelar',close:'Cerrar',ok:'Listo. Ya está en tu teléfono.',cancelled:'Descarga cancelada',bad_link:'Pega un enlace que empiece con https://',updating:'Actualizando el motor…',e_init_wait:'El motor sigue iniciando. Inténtalo en unos segundos.',e_init_fail:'No se pudo iniciar el motor: ',e_upd_fail:'No se pudo actualizar: ',i_updated:'Motor actualizado',e_create:'No se pudo crear el archivo',e_unknown:'Error desconocido'},
+en:{lead:'Paste a YouTube link and save the audio or video, with its thumbnail, to your phone.',ph:'Video or playlist link',paste:'Paste',hint:'Playlist detected: the whole list is saved in a folder with its name.',go:'Download',recent:'Recent',engine:'yt-dlp engine',upd:'Update engine',starting:'starting…',cancelling:'Cancelling…',redo:'Download again',redo_short:'Again',items:'Items',gear:'Settings',back:'Back',m_hist:'Download history',m_tog:'Show history on home',m_lang:'Language',o_title:'Download options',o_list:'Playlist detected: the whole list is downloaded into a folder with its name.',th_t:'Thumbnail',th_sw:'Also save as a separate image',th_note:'The thumbnail always appears inside the audio or video, when the format allows it.',wav_note:"WAV doesn't support embedded cover art.",saving:'Saving…',vq_t:'Video quality',max:'Maximum',vq_note:"If the video doesn't reach that quality, the highest available is downloaded.",af_t:'Audio format',af_note:"Uncompressed format: much larger files, and it doesn't improve the original YouTube audio.",aq_t:'Audio quality',best:'Best',med:'Medium',low:'Low',h_title:'Download history',h_empty:'No downloads yet.',h_clear:'Clear history',h_sure:'Tap again to clear everything',saved_in:'Saved in',dl_get:'Getting info…',preparing:'Preparing…',downloading:'Downloading',converting:'Converting…',song:'Song {a} of {b}',cancel:'Cancel',close:'Close',ok:"Done. It's on your phone.",cancelled:'Download cancelled',bad_link:'Paste a link that starts with https://',updating:'Updating the engine…',e_init_wait:'The engine is still starting. Try again in a few seconds.',e_init_fail:"Couldn't start the engine: ",e_upd_fail:"Couldn't update: ",i_updated:'Engine updated',e_create:"Couldn't create the file",e_unknown:'Unknown error'}
 };
 const $=s=>document.querySelector(s),A=window.Android;
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+function saveHist(){try{while(hist.length>1&&JSON.stringify(hist).length>2000000)hist.pop()}catch(e){}sv('h',hist)}
 let P=Object.assign({type:'audio',vq:'720',af:'mp3',aq:'best',thumb:true,showHist:true,lang:'es'},ld('p',{}));
 let hist=ld('h',[]);if(!Array.isArray(hist))hist=[];
 let sel={},view='home',busy=false,item=0,total=0,listMode=false,armed=false,engVer='';
@@ -217,20 +223,40 @@ function fmt(ts){
   if(!ts)return '';
   try{return new Date(ts).toLocaleString(P.lang,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){return ''}
 }
-function row(h){
-  const li=document.createElement('li'),b=document.createElement('b'),s=document.createElement('span');
-  b.textContent=h.n;
-  s.textContent=[h.w?t('saved_in')+' '+h.w:'',fmt(h.t)].filter(Boolean).join(' · ');
-  li.append(b,s);return li;
+function mk(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;return e}
+function row(h,full){
+  const li=mk('li'),b=mk('b','',h.n),s=mk('span','',[h.ch,h.w?t('saved_in')+' '+h.w:'',fmt(h.t)].filter(Boolean).join(' · '));
+  li.append(b,s);
+  if(h.req){
+    const a=mk('div','acts'),r=mk('button','mini',t('redo'));
+    r.onclick=()=>redo(h);a.append(r);
+    const its=(h.items||[]).filter(i=>i.u);
+    if(full&&its.length){const d=mk('button','mini',t('items')+' ('+its.length+')');d.onclick=()=>toggleItems(li,h,its);a.append(d)}
+    li.append(a);
+  }
+  return li;
+}
+function toggleItems(li,h,its){
+  const old=li.querySelector('.items');
+  if(old){old.remove();return}
+  const ul=mk('ul','items');
+  its.forEach(it=>{
+    const r=mk('li'),d=mk('div'),g=mk('button','mini',t('redo_short'));
+    d.append(mk('b','',it.t||it.u),mk('span','',it.c||''));
+    g.setAttribute('aria-label',t('redo')+': '+(it.t||''));
+    g.onclick=()=>redoItem(h,it);
+    r.append(d,g);ul.append(r);
+  });
+  li.append(ul);
 }
 function drawRecent(){
   const l=$('#rlist');l.innerHTML='';
-  hist.slice(0,5).forEach(h=>l.append(row(h)));
+  hist.slice(0,5).forEach(h=>l.append(row(h,false)));
   $('#recent').hidden=!P.showHist||!hist.length;
 }
 function drawHist(){
   const l=$('#hlist');l.innerHTML='';
-  hist.forEach(h=>l.append(row(h)));
+  hist.forEach(h=>l.append(row(h,true)));
   $('#hempty').hidden=hist.length>0;$('#hclear').hidden=!hist.length;
 }
 function syncMenu(){$('#mtog').setAttribute('aria-checked',String(!!P.showHist))}
@@ -258,6 +284,14 @@ function endDl(msg,err){
   $('#pstat').className=err?'pstat err':'pstat';$('#pst').textContent=msg;
   $('#dcancel').hidden=true;$('#dclose').hidden=false;
 }
+// ----- iniciar una descarga (nueva, repetida desde el historial, o un elemento de una lista)
+function launch(url,mode,opts){
+  if(busy){show('home');openDl();return}
+  item=0;total=0;say('');show('home');setBusy(true);resetDl();openDl();
+  A.start(url,mode,JSON.stringify(Object.assign({},opts,{lang:P.lang})));
+}
+function redo(h){launch(h.req.url,h.req.mode,Object.assign({},h.req.opts,{list:!!h.req.list}))}
+function redoItem(h,it){launch(it.u,h.req.mode,Object.assign({},h.req.opts,{list:false,sub:h.pl||'',idx:it.i||0}))}
 // ----- pantalla de opciones
 function renderOpts(){
   document.querySelectorAll('#otype button').forEach(b=>{
@@ -305,8 +339,9 @@ function onEvent(e){
   else if(e.t==='done'){
     setBusy(false);say(t('ok'));
     setP(100);endDl(t('saved_in')+' '+e.m);
-    hist.unshift({n:e.n,w:e.m,t:Date.now()});hist=hist.slice(0,100);
-    sv('h',hist);drawRecent();drawHist();
+    const x=e.x||{};
+    hist.unshift({n:e.n,w:e.m,t:Date.now(),req:x.req,ch:x.ch,pl:x.pl,items:x.items});hist=hist.slice(0,100);
+    saveHist();drawRecent();drawHist();
   }
   else if(e.t==='error'){setBusy(false);say(tm(e.m),true);if(!$('#dl').hidden)endDl(tm(e.m),true)}
   else if(e.t==='cancelled'){setBusy(false);closeDl();say(t('cancelled'))}
@@ -333,8 +368,7 @@ $('#othumb').onclick=()=>{sel.thumb=!sel.thumb;renderOpts()};
 $('#ostart').onclick=()=>{
   const u=cur();
   P=Object.assign(P,sel);sv('p',P);
-  item=0;total=0;say('');show('home');setBusy(true);resetDl();openDl();
-  A.start(u,sel.type,JSON.stringify({vq:sel.vq,af:sel.af,aq:sel.aq,lang:P.lang,list:listMode,thumb:!!sel.thumb}));
+  launch(u,sel.type,{vq:sel.vq,af:sel.af,aq:sel.aq,list:listMode,thumb:!!sel.thumb});
 };
 $('#dcancel').onclick=()=>{$('#pst').textContent=t('cancelling');A.cancel()};
 $('#dclose').onclick=closeDl;
