@@ -7,8 +7,10 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsetsController
@@ -17,6 +19,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import org.json.JSONArray
 
 class MainActivity : Activity() {
     private lateinit var web: WebView
@@ -109,6 +112,32 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun exists(uri: String): Boolean {
+        if (uri.isEmpty()) return false
+        return try {
+            contentResolver.query(Uri.parse(uri), arrayOf(MediaStore.MediaColumns._ID), null, null, null)
+                ?.use { it.count > 0 } ?: false
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** Abre o comparte un archivo guardado en Descargas. */
+    private fun openFile(uri: String, mime: String, share: Boolean) {
+        try {
+            val u = Uri.parse(uri)
+            val i = if (share) {
+                val send = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, u)
+                Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } else {
+                Intent(Intent.ACTION_VIEW).setDataAndType(u, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(i)
+        } catch (e: Exception) {
+            Zio.emit("info", "e_noapp")
+        }
+    }
+
     /** Mantiene la pantalla encendida mientras hay una descarga. */
     fun keepOn(on: Boolean) {
         runOnUiThread {
@@ -126,15 +155,29 @@ class MainActivity : Activity() {
     }
 
     inner class Bridge {
-        @JavascriptInterface fun start(url: String, mode: String, opts: String) {
+        @JavascriptInterface fun start(url: String, mode: String, opts: String): Int {
             runOnUiThread { askNotifications() }
-            Zio.start(url, mode, opts)
+            return Zio.start(url, mode, opts)
+        }
+        @JavascriptInterface fun retry(id: Int) { Zio.retry(id) }
+        @JavascriptInterface fun remove(id: Int) { Zio.remove(id) }
+        @JavascriptInterface fun listInfo(url: String, rid: Int) { Zio.listInfo(url, rid) }
+        @JavascriptInterface fun open(uri: String, mime: String) { runOnUiThread { openFile(uri, mime, false) } }
+        @JavascriptInterface fun share(uri: String, mime: String) { runOnUiThread { openFile(uri, mime, true) } }
+        // Recibe una lista de direcciones y responde cuáles archivos todavía existen
+        @JavascriptInterface fun check(json: String): String {
+            val out = JSONArray()
+            try {
+                val a = JSONArray(json)
+                for (i in 0 until a.length()) out.put(exists(a.optString(i)))
+            } catch (e: Exception) { }
+            return out.toString()
         }
         @JavascriptInterface fun music(on: Boolean) { runOnUiThread { Bgm.set(applicationContext, on) } }
         @JavascriptInterface fun icon(theme: String) {
             try { Icons.set(applicationContext, theme) } catch (e: Exception) { }
         }
-        @JavascriptInterface fun cancel() { Zio.cancel() }
+        @JavascriptInterface fun cancel(id: Int) { Zio.cancel(id) }
         @JavascriptInterface fun bars(bg: String, lightIcons: Boolean) { applyBars(bg, lightIcons) }
         @JavascriptInterface fun update() { Zio.update() }
         @JavascriptInterface fun ver(): String = Zio.version

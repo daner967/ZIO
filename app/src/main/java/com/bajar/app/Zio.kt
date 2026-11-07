@@ -19,26 +19,43 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 
 /**
- * Todo el trabajo pesado vive aquí y no en la pantalla (Activity): así una descarga sigue viva
+ * Todo el trabajo pesado vive aquí y no en la pantalla (Activity): así las descargas siguen vivas
  * aunque la pantalla se cierre o se vuelva a crear, y los eventos siempre llegan a la pantalla actual.
+ *
+ * Cola: cada descarga es un "trabajo". Se hacen de una en una, en orden. Si una se detiene (cancelada
+ * o con error) conserva lo ya bajado, y al reanudarla continúa desde ahí.
  */
 object Zio {
-    private val pool = Executors.newSingleThreadExecutor()
+    private val pool = Executors.newSingleThreadExecutor()      // descargas, una a la vez
+    private val infoPool = Executors.newSingleThreadExecutor()  // consultas de listas
     private lateinit var app: Application
     private var started = false
     private val MEDIA = setOf("mp3", "m4a", "opus", "flac", "wav", "mp4", "mkv", "webm")
     private val IMG = setOf("jpg", "jpeg", "png", "webp")
     private val TMP = Regex("\\.f\\d+\\.[a-z0-9]+$|\\.temp\\.[a-z0-9]+$") // restos intermedios de yt-dlp
 
+    private class Job(val id: Int, val key: String, val url: String, val mode: String, val opts: JSONObject) {
+        @Volatile var state = "queued" // queued | running | stopped
+        @Volatile var title = ""
+        @Volatile var msg = ""         // por qué se detuvo
+        @Volatile var gen = 0          // cambia cuando se cancela o se vuelve a programar
+    }
+
+    private val jobs = CopyOnWriteArrayList<Job>()
+    private var nextId = 1
+
     @Volatile private var ready = false
+    @Volatile private var curId = 0
+    @Volatile private var stopCur = false
+    @Volatile private var blocked = false
     @Volatile private var lastMeta = ""
     @Volatile private var lastProg = ""
     @Volatile private var lastNotif = 0L
     @Volatile var running = false
-    @Volatile var cancelled = false
     @Volatile var version = ""
     @Volatile var shared = ""
     @Volatile var ui: MainActivity? = null
@@ -53,13 +70,19 @@ object Zio {
             tmp.listFiles()?.forEach { it.deleteRecursively() }
             for (k in listOf("TMPDIR", "TEMP", "TMP")) Os.setenv(k, tmp.absolutePath, true)
         } catch (e: Exception) { }
+        // Limpieza: descargas detenidas de hace más de 7 días y restos de versiones anteriores
+        try {
+            val limit = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
+            File(app.cacheDir, "jobs").listFiles()?.forEach { if (it.lastModified() < limit) it.deleteRecursively() }
+            app.cacheDir.listFiles()?.forEach { if (it.isDirectory && Regex("^w\\d+$").matches(it.name)) it.deleteRecursively() }
+        } catch (e: Exception) { }
         pool.execute { startEngine() }
     }
 
     // ------------------------------------------------------------ comunicación con la pantalla
-    fun emit(t: String, m: String = "", p: Float = 0f, n: String = "", x: JSONObject? = null) {
+    fun emit(t: String, m: String = "", p: Float = 0f, n: String = "", x: Any? = null) {
         val pd = if (p.isNaN() || p.isInfinite()) 0.0 else p.toDouble()
-        val o = JSONObject().put("t", t).put("m", m).put("p", pd).put("n", n)
+        val o = JSONObject().put("t", t).put("m", m).put("p", pd).put("n", n).put("id", curId)
         if (x != null) o.put("x", x)
         val j = o.toString()
         if (running) {
@@ -69,10 +92,26 @@ object Zio {
         ui?.js("onEvent($j)")
     }
 
-    // Estado de la descarga en curso, para repintar la ventana si la pantalla se vuelve a crear
+    private fun snapshot(): JSONArray {
+        val a = JSONArray()
+        for (j in jobs) {
+            a.put(JSONObject().put("id", j.id).put("url", j.url).put("mode", j.mode)
+                .put("state", j.state).put("title", j.title).put("msg", j.msg))
+        }
+        return a
+    }
+
+    private fun pushQueue() { emit("queue", x = snapshot()) }
+
+    // Estado actual, para repintar la pantalla si Android la vuelve a crear con descargas en curso
     fun live(): String {
-        if (!running) return ""
-        return listOf(lastMeta, lastProg).filter { it.isNotEmpty() }.joinToString(",", "[", "]")
+        if (jobs.isEmpty()) return ""
+        val o = JSONObject().put("q", snapshot())
+        if (running) {
+            if (lastMeta.isNotEmpty()) o.put("meta", JSONObject(lastMeta))
+            if (lastProg.isNotEmpty()) o.put("prog", JSONObject(lastProg))
+        }
+        return o.toString()
     }
 
     fun takeShared(): String {
@@ -114,22 +153,158 @@ object Zio {
 
     fun update() { pool.execute { refresh(true) } }
 
-    fun cancel() {
-        cancelled = true
+    // Opciones comunes a todo lo que se le pide a yt-dlp
+    private fun common(r: YoutubeDLRequest) {
+        r.addOption("-P", "temp:" + File(app.cacheDir, "ytmp").apply { mkdirs() }.absolutePath)
+        r.addOption("--cache-dir", File(app.cacheDir, "ytcache").apply { mkdirs() }.absolutePath)
+    }
+
+    // ------------------------------------------------------------ cola de descargas
+    private fun keyOf(u: String, mode: String, o: JSONObject): String {
+        val parts = listOf("vq", "af", "aq", "thumb", "list", "sub", "idx", "items").joinToString("|") { o.optString(it) }
+        return Integer.toHexString("$u|$mode|$parts".hashCode())
+    }
+
+    @Synchronized
+    fun start(url: String, mode: String, opts: String): Int {
+        val u = url.trim()
+        if (!u.startsWith("https://") && !u.startsWith("http://")) { emit("error", "bad_link"); return -1 }
+        val o = try { JSONObject(opts) } catch (e: Exception) { JSONObject() }
+        val key = keyOf(u, mode, o)
+        val old = jobs.firstOrNull { it.key == key }
+        if (old != null) {
+            if (old.state == "stopped") { retry(old.id); return old.id } // misma descarga detenida: se reanuda
+            emit("info", "e_dup")
+            return -1
+        }
+        val j = Job(nextId++, key, u, mode, o)
+        jobs.add(j)
+        pushQueue()
+        val g = j.gen
+        pool.execute { runJob(j, g) }
+        return j.id
+    }
+
+    @Synchronized
+    fun retry(id: Int) {
+        val j = jobs.firstOrNull { it.id == id && it.state == "stopped" } ?: return
+        j.state = "queued"
+        j.msg = ""
+        val g = ++j.gen
+        pushQueue()
+        pool.execute { runJob(j, g) }
+    }
+
+    @Synchronized
+    fun cancel(id: Int) {
+        val j = jobs.firstOrNull { it.id == id } ?: return
+        if (j.state == "running") {
+            stopRunning()
+        } else if (j.state == "queued") {
+            j.gen++ // el turno ya programado quedará sin efecto
+            j.state = "stopped"
+            j.msg = "cancelled"
+            pushQueue()
+        }
+    }
+
+    @Synchronized
+    fun remove(id: Int) {
+        val j = jobs.firstOrNull { it.id == id } ?: return
+        if (j.state == "running") return
+        j.gen++
+        jobs.remove(j)
+        deleteWork(j)
+        pushQueue()
+    }
+
+    private fun stopRunning() {
+        stopCur = true
         try { YoutubeDL.getInstance().destroyProcessById("dl") } catch (e: Exception) { }
     }
 
-    fun start(url: String, mode: String, opts: String) {
-        val u = url.trim()
-        if (!u.startsWith("https://") && !u.startsWith("http://")) { emit("error", "bad_link"); return }
-        val o = try { JSONObject(opts) } catch (e: Exception) { JSONObject() }
-        cancelled = false
-        running = true
-        lastMeta = ""
-        lastProg = ""
-        pool.execute { download(u, mode, o) }
+    private fun deleteWork(j: Job) {
+        try { File(app.cacheDir, "jobs/${j.key}").deleteRecursively() } catch (e: Exception) { }
     }
 
+    private fun startService() {
+        try { app.startForegroundService(Intent(app, DownloadService::class.java)) } catch (e: Exception) { }
+    }
+
+    private fun stopService() {
+        try { app.stopService(Intent(app, DownloadService::class.java)) } catch (e: Exception) { }
+    }
+
+    private fun runJob(j: Job, g: Int) {
+        if (g != j.gen || j.state != "queued") return
+        val en = j.opts.optString("lang") == "en"
+        curId = j.id
+        j.state = "running"
+        j.msg = ""
+        j.title = ""
+        stopCur = false
+        blocked = false
+        lastMeta = ""
+        lastProg = ""
+        running = true
+        pushQueue()
+        startService()
+        val result: String? = try { download(j) } catch (e: Exception) { friendly(e.message) }
+        running = false
+        if (result == null) {
+            jobs.remove(j)
+            deleteWork(j)
+        } else {
+            j.state = "stopped"
+            j.msg = result
+        }
+        if (jobs.none { it.state == "queued" || it.state == "running" }) {
+            stopService()
+            ui?.keepOn(false)
+        }
+        pushQueue()
+        if (result == "cancelled") {
+            emit("cancelled")
+        } else if (result != null) {
+            emit("error", result)
+            notifyEnd(if (en) "Download failed" else "Falló la descarga")
+        }
+    }
+
+    // ------------------------------------------------------------ elegir elementos de una lista
+    fun listInfo(url: String, rid: Int) {
+        val u = url.trim()
+        if (!u.startsWith("https://") && !u.startsWith("http://")) { emit("list_err", "bad_link"); return }
+        infoPool.execute {
+            try {
+                if (!ready) { emit("list_err", "e_init_wait"); return@execute }
+                val r = YoutubeDLRequest(u)
+                common(r)
+                r.addOption("--flat-playlist")
+                r.addOption("-J")
+                r.addOption("--no-warnings")
+                val out = YoutubeDL.getInstance().execute(r).out
+                val root = JSONObject(out)
+                val entries = root.optJSONArray("entries") ?: JSONArray()
+                val arr = JSONArray()
+                for (k in 0 until entries.length()) {
+                    val e = entries.optJSONObject(k) ?: continue
+                    val str = { key: String -> if (e.isNull(key)) "" else e.optString(key) }
+                    arr.put(
+                        JSONObject().put("i", k + 1).put("id", str("id")).put("t", str("title"))
+                            .put("c", str("channel").ifEmpty { str("uploader") })
+                            .put("d", e.optInt("duration", 0))
+                    )
+                }
+                val title = if (root.isNull("title")) "" else root.optString("title")
+                emit("list", x = JSONObject().put("rid", rid).put("title", title).put("items", arr))
+            } catch (e: Exception) {
+                emit("list_err", friendly(e.message))
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Wi-Fi / datos móviles
     // ¿La conexión actual son solo datos móviles? (Wi-Fi o cable cuentan como conexión normal)
     private fun onMobile(): Boolean {
         return try {
@@ -160,20 +335,22 @@ object Zio {
         } catch (e: Exception) { }
     }
 
-    // ------------------------------------------------------------ descarga
-    private fun download(url: String, mode: String, o: JSONObject) {
+    // ------------------------------------------------------------ descarga de un trabajo
+    // Devuelve null si todo salió bien, "cancelled" si se canceló, o un código de error.
+    private fun download(j: Job): String? {
+        val url = j.url
+        val mode = j.mode
+        val o = j.opts
         val en = o.optString("lang") == "en"
-        val work = File(app.cacheDir, "w${System.currentTimeMillis()}")
+        // La carpeta de trabajo se conserva si la descarga se detiene: así se puede reanudar
+        val work = File(app.cacheDir, "jobs/${j.key}")
         var wl: PowerManager.WakeLock? = null
         try {
-            if (cancelled) { emit("cancelled"); return }
-            if (!ready) { emit("error", "e_init_wait"); return }
+            if (!ready) return "e_init_wait"
             val mobileOk = o.optBoolean("mobile", true) // false = solo Wi-Fi
-            if (!mobileOk && onMobile()) { emit("error", "e_mobile"); return }
+            if (!mobileOk && onMobile()) return "e_mobile"
             work.mkdirs()
             ui?.keepOn(true)
-            // Servicio en primer plano + CPU despierta: la descarga sigue aunque cambies de app o apagues la pantalla
-            try { app.startForegroundService(Intent(app, DownloadService::class.java)) } catch (e: Exception) { }
             try {
                 val lock = app.getSystemService(PowerManager::class.java)
                     .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "zio:download")
@@ -189,36 +366,41 @@ object Zio {
             val thumb = o.optBoolean("thumb", true) // guardar también la miniatura como imagen aparte
             val video = mode == "video"
             val dir = work.absolutePath
+            // Elementos elegidos de una lista, por ejemplo "1-3,5,8-9"
+            val pick = if (isList) o.optString("items").replace(Regex("[^0-9,\\-]"), "") else ""
+            val pickIdx = expand(pick)
 
             // Nombre de archivo: "Canal - Título" (en bytes, para no pasar el límite de Android).
             // Al bajar de nuevo un elemento de una lista, vuelve a su carpeta y a su número.
             val unk = if (en) "Unknown" else "Canal"
             val who = "%(channel,uploader|$unk).60B"
             val ttl = "%(title).110B"
-            val sub = o.optString("sub").replace(Regex("[\\/]"), "_").replace("..", "_").trim().take(120)
+            val sub = o.optString("sub").replace(Regex("[\\\\/]"), "_").replace("..", "_").trim().take(120)
             val idx = o.optInt("idx", 0)
             val pre = if (!isList && idx > 0) "%02d - ".format(idx) else ""
             val saveOpts = JSONObject().put("vq", vq).put("af", af).put("aq", aq).put("thumb", thumb)
             if (sub.isNotEmpty()) saveOpts.put("sub", sub)
             if (idx > 0) saveOpts.put("idx", idx)
+            if (pick.isNotEmpty()) saveOpts.put("items", pick)
             val req = JSONObject().put("url", url).put("mode", mode).put("list", isList).put("opts", saveOpts)
 
             val r = YoutubeDLRequest(url)
-            // yt-dlp prueba algunos formatos antes de bajarlos y para eso crea un archivo temporal: se le da una carpeta propia
-            r.addOption("-P", "temp:" + File(app.cacheDir, "ytmp").apply { mkdirs() }.absolutePath)
-            r.addOption("--cache-dir", File(app.cacheDir, "ytcache").apply { mkdirs() }.absolutePath)
+            common(r)
             r.addOption("--windows-filenames")
             r.addOption("--no-mtime")
             r.addOption("--embed-metadata")                 // canal, título, etc. dentro del archivo
             r.addOption("--write-info-json")                // datos del video para el historial (no se guardan en Descargas)
             r.addOption("--no-write-playlist-metafiles")
-            r.addOption("-N", "4") // fragmentos en paralelo cuando el formato los usa
+            r.addOption("-N", "4")                          // fragmentos en paralelo cuando el formato los usa
             r.addOption("--convert-thumbnails", "jpg")
             if (thumb) r.addOption("--write-thumbnail")                // imagen aparte
             if (video || af != "wav") r.addOption("--embed-thumbnail") // portada dentro del archivo
             if (isList) {
                 r.addOption("--yes-playlist")
                 r.addOption("--ignore-errors")
+                if (pick.isNotEmpty()) r.addOption("--playlist-items", pick)
+                // lo ya bajado queda anotado: al reanudar una lista no se repite
+                r.addOption("--download-archive", File(work, "archive.txt").absolutePath)
                 r.addOption("-o", "$dir/%(playlist_title).80B/%(playlist_index)02d - $who - $ttl.%(ext)s")
             } else {
                 r.addOption("--no-playlist")
@@ -261,10 +443,11 @@ object Zio {
                     val isImg = ext in IMG
                     if (!isMedia && !(isImg && thumb)) { if (isImg) f.delete(); continue }
                     if (isMedia) emit("progress", "[saving]", 100f)
-                    save(f, mimeOf(f), dest)
+                    val uri = save(f, mimeOf(f), dest)
                     if (isMedia) {
                         savedCount++
-                        readItem(File(d, f.nameWithoutExtension + ".info.json"))?.let { items.put(it) }
+                        val info = readItem(File(d, f.nameWithoutExtension + ".info.json"))
+                        if (info != null) items.put(info.put("v", uri).put("m", mimeOf(f)))
                     }
                     f.delete()
                 }
@@ -273,7 +456,6 @@ object Zio {
             var err: String? = null
             var lastEmit = 0L
             var lastNet = 0L
-            var blocked = false
             try {
                 YoutubeDL.getInstance().execute(r, "dl") { p, _, line ->
                     val ln = "$line"
@@ -282,12 +464,21 @@ object Zio {
                         if (m != null) {
                             curItem = m.groupValues[1].toInt()
                             totalItems = m.groupValues[2].toInt()
-                            if (curItem > 1) flush("%02d - ".format(curItem - 1))
+                            if (curItem > 1) {
+                                // el elemento anterior ya terminó: se guarda y se libera espacio
+                                val prev = if (pickIdx.isNotEmpty()) pickIdx.getOrNull(curItem - 2) else curItem - 1
+                                if (prev != null) flush("%02d - ".format(prev))
+                            }
                         }
                     }
                     // al empezar cada descarga se envía la miniatura y el título a la ventana de progreso
                     if (ln.startsWith("[download] Destination:")) {
-                        curTitle = meta(work, ln, sent).ifEmpty { curTitle }
+                        val title = meta(work, ln, sent)
+                        if (title.isNotEmpty() && title != j.title) {
+                            j.title = title
+                            curTitle = title
+                            pushQueue()
+                        }
                     }
                     // las líneas de porcentaje llegan muy seguido: se limitan para no saturar la pantalla
                     val isPct = ln.startsWith("[download]") && ln.contains("%")
@@ -302,28 +493,20 @@ object Zio {
                     // si la descarga con datos está desactivada y el teléfono cambia a datos móviles, se detiene
                     if (!mobileOk && now - lastNet > 3000) {
                         lastNet = now
-                        if (onMobile()) { blocked = true; cancel() }
+                        if (onMobile()) { blocked = true; stopRunning() }
                     }
                 }
             } catch (e: Exception) {
                 err = e.message
             }
-            if (cancelled) {
-                if (blocked) emit("error", "e_mobile") else emit("cancelled")
-                return
-            }
+            if (stopCur) return if (blocked) "e_mobile" else "cancelled"
 
             val coverFail = err?.let { it.contains("thumbnail", true) || it.contains("mutagen", true) || it.contains("embed", true) } == true
             val noCover = if (coverFail) (if (en) " · cover not embedded" else " · portada no incrustada") else ""
 
             if (isList) {
                 flush(null)
-                if (savedCount == 0) {
-                    val msg = nice(err)
-                    emit("error", msg)
-                    notifyEnd(if (en) "Download failed" else "Falló la descarga")
-                    return
-                }
+                if (savedCount == 0) return friendly(err)
                 val what = if (video) "videos" else (if (en) "songs" else "canciones")
                 val failed = if (totalItems > savedCount) (if (en) ", ${totalItems - savedCount} failed" else ", ${totalItems - savedCount} fallaron") else ""
                 val n = "$playlistName ($savedCount $what$failed)$noCover"
@@ -334,30 +517,37 @@ object Zio {
                 val all = work.walkTopDown().filter { it.isFile }.sortedBy { it.name }.toList()
                 val files = all.filter { it.extension.lowercase() in MEDIA && !TMP.containsMatchIn(it.name) }
                 val thumbs = if (thumb) all.filter { it.extension.lowercase() in IMG } else emptyList()
-                if (files.isEmpty()) {
-                    emit("error", nice(err))
-                    notifyEnd(if (en) "Download failed" else "Falló la descarga")
-                    return
-                }
+                if (files.isEmpty()) return friendly(err)
                 val f = files.first()
-                save(f, mimeOf(f), saveDir)
+                val uri = save(f, mimeOf(f), saveDir)
                 thumbs.forEach { save(it, mimeOf(it), saveDir) }
                 val info = readItem(File(f.parentFile, f.nameWithoutExtension + ".info.json"))
                 val extra = if (thumbs.isEmpty()) "" else (if (en) " + thumbnail" else " + miniatura")
                 val n = f.name + extra + noCover
-                val x = JSONObject().put("req", req).put("ch", info?.optString("c") ?: "")
+                val x = JSONObject().put("req", req).put("ch", info?.optString("c") ?: "").put("v", uri).put("m", mimeOf(f))
                 emit("done", saveDir, n = n, x = x)
                 notifyEnd((if (en) "Done: " else "Listo: ") + n)
             }
+            return null
         } catch (e: Exception) {
-            emit("error", nice(e.message))
+            return friendly(e.message)
         } finally {
-            work.deleteRecursively()
             try { wl?.let { if (it.isHeld) it.release() } } catch (e: Exception) { }
-            try { app.stopService(Intent(app, DownloadService::class.java)) } catch (e: Exception) { }
-            running = false
-            ui?.keepOn(false)
         }
+    }
+
+    // "1-3,5" -> [1, 2, 3, 5]
+    private fun expand(s: String): List<Int> {
+        val out = ArrayList<Int>()
+        for (p in s.split(",")) {
+            if (p.isEmpty()) continue
+            val ab = p.split("-")
+            val a = ab[0].toIntOrNull() ?: continue
+            val b = if (ab.size > 1) (ab[1].toIntOrNull() ?: a) else a
+            if (b < a || b - a > 5000) continue
+            for (k in a..b) out.add(k)
+        }
+        return out
     }
 
     // Envía a la ventana de progreso el título y la miniatura del video que empieza. Devuelve el título.
@@ -405,8 +595,9 @@ object Zio {
         else -> "application/octet-stream"
     }
 
-    // Copia el archivo a Descargas. Si algo falla a medias, borra el archivo incompleto
-    private fun save(f: File, mime: String, dir: String) {
+    // Copia el archivo a Descargas y devuelve su dirección (para abrirlo o compartirlo desde el historial).
+    // Si algo falla a medias, borra el archivo incompleto.
+    private fun save(f: File, mime: String, dir: String): String {
         val v = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -424,6 +615,7 @@ object Zio {
             try { res.delete(u, null, null) } catch (x: Exception) { }
             throw e
         }
+        return u.toString()
     }
 
     // Lee los datos de un video que yt-dlp dejó en su archivo .info.json: enlace, título, canal y posición en la lista
@@ -434,6 +626,7 @@ object Zio {
             val s = { k: String -> if (j.isNull(k)) "" else j.optString(k) }
             JSONObject()
                 .put("u", s("webpage_url").ifEmpty { s("original_url") })
+                .put("id", s("id"))
                 .put("t", s("title"))
                 .put("c", s("channel").ifEmpty { s("uploader") })
                 .put("i", j.optInt("playlist_index", 0))
@@ -442,9 +635,40 @@ object Zio {
         }
     }
 
-    private fun nice(m: String?): String {
+    // ------------------------------------------------------------ errores explicados
+    private fun lastError(m: String?): String {
         val lines = m.orEmpty().lines()
-        val l = lines.lastOrNull { it.contains("ERROR") } ?: lines.lastOrNull { it.isNotBlank() } ?: "e_unknown"
+        val l = lines.lastOrNull { it.contains("ERROR") } ?: lines.lastOrNull { it.isNotBlank() } ?: ""
         return l.removePrefix("ERROR: ").trim().take(220)
+    }
+
+    // Convierte el mensaje de yt-dlp en un código que la pantalla traduce y explica
+    private fun friendly(m: String?): String {
+        val l = m.orEmpty().lowercase()
+        fun has(vararg k: String) = k.any { l.contains(it) }
+        return when {
+            has("e_create") -> "e_create"
+            has("confirm your age", "age-restricted", "age restricted", "inappropriate for some users") -> "e_age"
+            has("not a bot") -> "e_bot"
+            has("private video", "this video is private") -> "e_private"
+            has("members-only", "members only", "join this channel", "channel's members") -> "e_members"
+            has("not available in your country", "blocked it in your country", "geo-restrict", "geo restrict") -> "e_geo"
+            has("video unavailable", "this video is not available", "has been removed", "no longer available",
+                "account associated with this video has been terminated", "copyright", "does not exist") -> "e_unavail"
+            has("premieres in", "live event will begin", "this live event", "is offline") -> "e_live"
+            has("http error 429", "too many requests") -> "e_429"
+            has("no space left") -> "e_space"
+            has("read-only file system") -> "e_ro"
+            has("unsupported url") -> "e_url"
+            has("requested format is not available", "no video formats found") -> "e_format"
+            has("getaddrinfo", "name resolution", "network is unreachable", "timed out", "connection reset",
+                "connection refused", "unable to download webpage", "unable to download api page",
+                "remote end closed", "urlopen error", "no route to host") -> "e_net"
+            has("unable to extract", "failed to extract", "nsig", "signature extraction", "player response", "challenge") -> "e_extract"
+            else -> {
+                val d = lastError(m)
+                if (d.isEmpty()) "e_unknown" else "e_other|$d"
+            }
+        }
     }
 }
