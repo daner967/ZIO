@@ -6,6 +6,8 @@ import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.PowerManager
 import android.provider.MediaStore
 import android.system.Os
@@ -128,6 +130,19 @@ object Zio {
         pool.execute { download(u, mode, o) }
     }
 
+    // ¿La conexión actual son solo datos móviles? (Wi-Fi o cable cuentan como conexión normal)
+    private fun onMobile(): Boolean {
+        return try {
+            val cm = app.getSystemService(ConnectivityManager::class.java)
+            val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     // ------------------------------------------------------------ notificaciones
     private fun notifyRun(text: String, pct: Int) {
         val now = System.currentTimeMillis()
@@ -153,6 +168,8 @@ object Zio {
         try {
             if (cancelled) { emit("cancelled"); return }
             if (!ready) { emit("error", "e_init_wait"); return }
+            val mobileOk = o.optBoolean("mobile", true) // false = solo Wi-Fi
+            if (!mobileOk && onMobile()) { emit("error", "e_mobile"); return }
             work.mkdirs()
             ui?.keepOn(true)
             // Servicio en primer plano + CPU despierta: la descarga sigue aunque cambies de app o apagues la pantalla
@@ -255,6 +272,8 @@ object Zio {
 
             var err: String? = null
             var lastEmit = 0L
+            var lastNet = 0L
+            var blocked = false
             try {
                 YoutubeDL.getInstance().execute(r, "dl") { p, _, line ->
                     val ln = "$line"
@@ -280,11 +299,19 @@ object Zio {
                         val all = if (totalItems > 0) ((curItem - 1) + pf / 100f) / totalItems * 100f else pf
                         notifyRun(if (curTitle.isEmpty()) "…" else curTitle, all.toInt())
                     }
+                    // si la descarga con datos está desactivada y el teléfono cambia a datos móviles, se detiene
+                    if (!mobileOk && now - lastNet > 3000) {
+                        lastNet = now
+                        if (onMobile()) { blocked = true; cancel() }
+                    }
                 }
             } catch (e: Exception) {
                 err = e.message
             }
-            if (cancelled) { emit("cancelled"); return }
+            if (cancelled) {
+                if (blocked) emit("error", "e_mobile") else emit("cancelled")
+                return
+            }
 
             val coverFail = err?.let { it.contains("thumbnail", true) || it.contains("mutagen", true) || it.contains("embed", true) } == true
             val noCover = if (coverFail) (if (en) " · cover not embedded" else " · portada no incrustada") else ""

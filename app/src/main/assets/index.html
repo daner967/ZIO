@@ -4,13 +4,17 @@
 <meta name="color-scheme" content="light dark">
 <title>ZIO</title>
 <style>
-:root{--bg:#F5F0FE;--card:#FFFFFF;--ink:#1B1030;--mute:#675987;--line:#DDD0F4;--off:#A593C8;--acc:#9647F4;--accT:#7B2FE3;--track:#3B2470;--bad:#B3261E;--on:#FFFFFF;--tile:#9647F4;--tileb:transparent}
+:root{--bg:#F5F0FE;--card:#FFFFFF;--ink:#1B1030;--mute:#675987;--line:#DDD0F4;--off:#A593C8;--acc:#9647F4;--accT:#7B2FE3;--track:#3B2470;--bad:#B3261E;--on:#FFFFFF;--tile:#9647F4;--tileb:transparent;--pop:var(--card)}
 @media(prefers-color-scheme:dark){:root{--bg:#130B24;--card:#1E1335;--ink:#F2ECFF;--mute:#AB9DCB;--line:#34255A;--off:#5B4690;--accT:#B98BFF;--bad:#FF9A92}}
 /* Temas: el morado sigue al modo claro/oscuro del teléfono; los demás son fijos */
 :root[data-theme=black]{--bg:#000000;--card:#0E0E0E;--ink:#FFFFFF;--mute:#A6A6A6;--line:#2B2B2B;--off:#5C5C5C;--acc:#FFFFFF;--accT:#FFFFFF;--on:#000000;--track:#9A9A9A;--bad:#FF8A8A;--tile:#FFFFFF;--tileb:transparent;color-scheme:dark}
 :root[data-theme=white]{--bg:#FAFAFA;--card:#FFFFFF;--ink:#000000;--mute:#4D4D4D;--line:#CFCFCF;--off:#8F8F8F;--acc:#000000;--accT:#000000;--on:#FFFFFF;--track:#5A5A5A;--bad:#B3261E;--tile:#FFFFFF;--tileb:#000000;color-scheme:light}
 :root[data-theme=green]{--bg:#04100A;--card:#0A1D12;--ink:#E8FFF0;--mute:#8FB89E;--line:#17402A;--off:#2F6B49;--acc:#2BF56F;--accT:#2BF56F;--on:#04100A;--track:#5E8F6E;--bad:#FF9A92;--tile:#2BF56F;--tileb:transparent;color-scheme:dark}
 :root[data-theme=red]{--bg:#14060A;--card:#200B11;--ink:#FFECEF;--mute:#C79AA4;--line:#4A1824;--off:#7A3342;--acc:#FF3D5A;--accT:#FF6B82;--on:#14060A;--track:#B86878;--bad:#FFD166;--tile:#FF3D5A;--tileb:transparent;color-scheme:dark}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(var(--veil,transparent),var(--veil,transparent)),var(--bgimg,none) center top/cover no-repeat}
+:root[data-theme=blackpurple]{--bg:#000000;--card:#0F0A18;--ink:#F2ECFF;--mute:#A99BC7;--line:#2A1F42;--off:#4B3A73;--acc:#9647F4;--accT:#B98BFF;--on:#FFFFFF;--track:#3B2470;--bad:#FF9A92;--tile:#9647F4;--tileb:transparent;color-scheme:dark}
+:root[data-theme=xmas]{--bg:#4A0006;--bgimg:url(xmas.jpg);--veil:rgba(45,0,8,.55);--card:rgba(66,0,14,.92);--pop:#3B0710;--ink:#FFFFFF;--mute:#FFD3D9;--line:rgba(255,255,255,.3);--off:#8A2A38;--acc:#FFFFFF;--accT:#FFFFFF;--on:#A30018;--track:#F3A6B0;--bad:#FFE08A;--tile:#FFFFFF;--tileb:#E01E37;color-scheme:dark}
+:root[data-theme=xmas] :is(.lead,.note,.sec,#msg,footer,.olink,.ptitle,h1,.hint){text-shadow:0 1px 3px rgba(40,0,6,.85)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}
 main{max-width:34rem;margin:0 auto;padding:24px 20px 40px}
@@ -21,14 +25,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 h1{margin:0;padding-left:14px;border-left:3px solid var(--acc);display:flex;align-items:center;font:600 clamp(2.4rem,13vw,3.2rem)/1 "Iowan Old Style","Noto Serif",Georgia,serif;letter-spacing:-.02em}
 .gear{margin-left:auto;align-self:flex-start;width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--mute);display:grid;place-items:center}
 .gear svg{width:22px;height:22px}
-.menu{position:absolute;right:0;top:60px;z-index:5;width:min(290px,100%);background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:6px;box-shadow:0 10px 28px rgba(27,16,48,.28)}
+.menu{position:absolute;right:0;top:60px;z-index:5;width:min(330px,100%);background:var(--pop);border:1.5px solid var(--line);border-radius:16px;padding:6px;box-shadow:0 10px 28px rgba(27,16,48,.28)}
 .menu>button{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:48px;padding:0 12px;border:0;background:none;border-radius:10px;text-align:left;font-weight:600}
 .menu>button:active{background:var(--bg)}
 .mtheme{padding:8px 6px 6px;border-top:1px solid var(--line);margin-top:4px}
 .mtheme>span{display:block;font-weight:600;margin:0 6px 4px}
 .mtheme small{display:block;margin:2px 6px 4px;color:var(--mute)}
-.swatches{display:flex;justify-content:space-between}
-.tsw{width:44px;height:44px;border:0;background:none;display:grid;place-items:center;border-radius:50%}
+.swatches{display:flex;flex-wrap:wrap;justify-content:space-between}
+.tsw{width:42px;height:44px;border:0;background:none;display:grid;place-items:center;border-radius:50%}
 .tsw i{display:block;width:30px;height:30px;border-radius:50%;border:2px solid #6B6B6B}
 .tsw[aria-checked=true] i{outline:3px solid var(--accT);outline-offset:2px}
 .tsw[data-th=purple] i{background:#9647F4;border-color:#9647F4}
@@ -36,6 +40,8 @@ h1{margin:0;padding-left:14px;border-left:3px solid var(--acc);display:flex;alig
 .tsw[data-th=white] i{background:radial-gradient(circle,#000 0 26%,#fff 29%)}
 .tsw[data-th=green] i{background:#2BF56F;border-color:#2BF56F}
 .tsw[data-th=red] i{background:#FF3D5A;border-color:#FF3D5A}
+.tsw[data-th=blackpurple] i{background:radial-gradient(circle,#9647F4 0 26%,#000 29%)}
+.tsw[data-th=xmas] i{background:repeating-linear-gradient(45deg,#E01E37 0 5px,#fff 5px 10px);border-color:#fff}
 .mlang{padding:8px 6px 6px;border-top:1px solid var(--line);margin-top:4px}
 .mlang>span{display:block;font-weight:600;margin:0 6px 8px}
 .sw{flex:none;position:relative;width:42px;height:24px;border-radius:12px;background:var(--off)}
@@ -80,7 +86,7 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
 .items li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:0}
 .items li div{min-width:0}
 .modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.72)}
-.sheet{width:100%;max-width:26rem;background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:16px;box-shadow:0 18px 48px rgba(0,0,0,.4)}
+.sheet{width:100%;max-width:26rem;background:var(--pop);border:1.5px solid var(--line);border-radius:24px;padding:16px;box-shadow:0 18px 48px rgba(0,0,0,.4)}
 .thumb{position:relative;aspect-ratio:16/9;border-radius:16px;background:var(--tile);border:2px solid var(--tileb);display:grid;place-items:center;overflow:hidden}
 .thumb .ph{width:26%}
 .thumb .ph img{width:100%;display:block}
@@ -108,13 +114,16 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
     <div class="menu" id="menu" hidden>
       <button id="mhist" data-i="m_hist">Historial de descargas</button>
       <button id="mtog" role="switch" aria-checked="true"><span data-i="m_tog">Mostrar historial en inicio</span><i class="sw"></i></button>
+      <button id="mmob" role="switch" aria-checked="true"><span data-i="m_mobile">Descargar con datos móviles</span><i class="sw"></i></button>
       <div class="mtheme"><span data-i="m_theme">Tema</span>
         <div class="swatches" role="radiogroup">
           <button class="tsw" data-th="purple" role="radio" aria-checked="true"><i></i></button>
+          <button class="tsw" data-th="blackpurple" role="radio" aria-checked="false"><i></i></button>
           <button class="tsw" data-th="black" role="radio" aria-checked="false"><i></i></button>
           <button class="tsw" data-th="white" role="radio" aria-checked="false"><i></i></button>
           <button class="tsw" data-th="green" role="radio" aria-checked="false"><i></i></button>
           <button class="tsw" data-th="red" role="radio" aria-checked="false"><i></i></button>
+          <button class="tsw" data-th="xmas" role="radio" aria-checked="false"><i></i></button>
         </div>
         <small id="thname"></small>
       </div>
@@ -208,14 +217,14 @@ footer{margin-top:32px;color:var(--mute);font-size:.88rem;display:flex;gap:12px;
 
 <script>
 const T={
-es:{lead:'Pega un enlace de YouTube y guarda el audio o el video, con su miniatura, en tu teléfono.',ph:'Enlace del video o de la lista',paste:'Pegar',hint:'Lista detectada: se baja toda la lista en una carpeta con su nombre.',go:'Descargar',recent:'Recientes',engine:'Motor yt-dlp',upd:'Actualizar motor',starting:'iniciando…',cancelling:'Cancelando…',redo:'Descargar de nuevo',redo_short:'De nuevo',items:'Elementos',gear:'Ajustes',back:'Volver',m_hist:'Historial de descargas',m_tog:'Mostrar historial en inicio',m_lang:'Idioma',m_theme:'Tema',th_purple:'Morado',th_black:'Negro con blanco',th_white:'Blanco con negro',th_green:'Verde neón',th_red:'Rojo neón',o_title:'Opciones de descarga',o_list:'Lista detectada: se baja toda la lista y se guarda en una carpeta con su nombre.',th_t:'Miniatura',th_sw:'Guardar también como imagen aparte',th_note:'La miniatura aparece siempre dentro del audio o video, si el formato lo permite.',wav_note:'WAV no admite portada incrustada.',saving:'Guardando…',vq_t:'Calidad del video',max:'Máxima',vq_note:'Si el video no llega a esa calidad, se baja la más alta que tenga.',af_t:'Formato del audio',af_note:'Formato sin compresión: pesa mucho más y no mejora el audio original de YouTube.',aq_t:'Calidad del audio',best:'Mejor',med:'Media',low:'Baja',h_title:'Historial de descargas',h_empty:'Todavía no hay descargas.',h_clear:'Borrar historial',h_sure:'Toca otra vez para borrar todo',saved_in:'Guardado en',dl_get:'Obteniendo información…',preparing:'Preparando…',downloading:'Descargando',converting:'Convirtiendo…',song:'Canción {a} de {b}',cancel:'Cancelar',close:'Cerrar',ok:'Listo. Ya está en tu teléfono.',cancelled:'Descarga cancelada',bad_link:'Pega un enlace que empiece con https://',updating:'Actualizando el motor…',e_init_wait:'El motor sigue iniciando. Inténtalo en unos segundos.',e_init_fail:'No se pudo iniciar el motor: ',e_upd_fail:'No se pudo actualizar: ',i_updated:'Motor actualizado',e_create:'No se pudo crear el archivo',e_unknown:'Error desconocido'},
-en:{lead:'Paste a YouTube link and save the audio or video, with its thumbnail, to your phone.',ph:'Video or playlist link',paste:'Paste',hint:'Playlist detected: the whole list is saved in a folder with its name.',go:'Download',recent:'Recent',engine:'yt-dlp engine',upd:'Update engine',starting:'starting…',cancelling:'Cancelling…',redo:'Download again',redo_short:'Again',items:'Items',gear:'Settings',back:'Back',m_hist:'Download history',m_tog:'Show history on home',m_lang:'Language',m_theme:'Theme',th_purple:'Purple',th_black:'Black and white',th_white:'White and black',th_green:'Neon green',th_red:'Neon red',o_title:'Download options',o_list:'Playlist detected: the whole list is downloaded into a folder with its name.',th_t:'Thumbnail',th_sw:'Also save as a separate image',th_note:'The thumbnail always appears inside the audio or video, when the format allows it.',wav_note:"WAV doesn't support embedded cover art.",saving:'Saving…',vq_t:'Video quality',max:'Maximum',vq_note:"If the video doesn't reach that quality, the highest available is downloaded.",af_t:'Audio format',af_note:"Uncompressed format: much larger files, and it doesn't improve the original YouTube audio.",aq_t:'Audio quality',best:'Best',med:'Medium',low:'Low',h_title:'Download history',h_empty:'No downloads yet.',h_clear:'Clear history',h_sure:'Tap again to clear everything',saved_in:'Saved in',dl_get:'Getting info…',preparing:'Preparing…',downloading:'Downloading',converting:'Converting…',song:'Song {a} of {b}',cancel:'Cancel',close:'Close',ok:"Done. It's on your phone.",cancelled:'Download cancelled',bad_link:'Paste a link that starts with https://',updating:'Updating the engine…',e_init_wait:'The engine is still starting. Try again in a few seconds.',e_init_fail:"Couldn't start the engine: ",e_upd_fail:"Couldn't update: ",i_updated:'Engine updated',e_create:"Couldn't create the file",e_unknown:'Unknown error'}
+es:{lead:'Pega un enlace de YouTube y guarda el audio o el video, con su miniatura, en tu teléfono.',ph:'Enlace del video o de la lista',paste:'Pegar',hint:'Lista detectada: se baja toda la lista en una carpeta con su nombre.',go:'Descargar',recent:'Recientes',engine:'Motor yt-dlp',upd:'Actualizar motor',starting:'iniciando…',cancelling:'Cancelando…',redo:'Descargar de nuevo',redo_short:'De nuevo',items:'Elementos',gear:'Ajustes',back:'Volver',m_hist:'Historial de descargas',m_tog:'Mostrar historial en inicio',m_lang:'Idioma',m_theme:'Tema',th_purple:'Morado',th_blackpurple:'Negro y morado',th_xmas:'Navidad',m_mobile:'Descargar con datos móviles',e_mobile:'Estás con datos móviles y la descarga con datos está desactivada. Conéctate a Wi-Fi o actívala en el engranaje.',th_black:'Negro con blanco',th_white:'Blanco con negro',th_green:'Verde neón',th_red:'Rojo neón',o_title:'Opciones de descarga',o_list:'Lista detectada: se baja toda la lista y se guarda en una carpeta con su nombre.',th_t:'Miniatura',th_sw:'Guardar también como imagen aparte',th_note:'La miniatura aparece siempre dentro del audio o video, si el formato lo permite.',wav_note:'WAV no admite portada incrustada.',saving:'Guardando…',vq_t:'Calidad del video',max:'Máxima',vq_note:'Si el video no llega a esa calidad, se baja la más alta que tenga.',af_t:'Formato del audio',af_note:'Formato sin compresión: pesa mucho más y no mejora el audio original de YouTube.',aq_t:'Calidad del audio',best:'Mejor',med:'Media',low:'Baja',h_title:'Historial de descargas',h_empty:'Todavía no hay descargas.',h_clear:'Borrar historial',h_sure:'Toca otra vez para borrar todo',saved_in:'Guardado en',dl_get:'Obteniendo información…',preparing:'Preparando…',downloading:'Descargando',converting:'Convirtiendo…',song:'Canción {a} de {b}',cancel:'Cancelar',close:'Cerrar',ok:'Listo. Ya está en tu teléfono.',cancelled:'Descarga cancelada',bad_link:'Pega un enlace que empiece con https://',updating:'Actualizando el motor…',e_init_wait:'El motor sigue iniciando. Inténtalo en unos segundos.',e_init_fail:'No se pudo iniciar el motor: ',e_upd_fail:'No se pudo actualizar: ',i_updated:'Motor actualizado',e_create:'No se pudo crear el archivo',e_unknown:'Error desconocido'},
+en:{lead:'Paste a YouTube link and save the audio or video, with its thumbnail, to your phone.',ph:'Video or playlist link',paste:'Paste',hint:'Playlist detected: the whole list is saved in a folder with its name.',go:'Download',recent:'Recent',engine:'yt-dlp engine',upd:'Update engine',starting:'starting…',cancelling:'Cancelling…',redo:'Download again',redo_short:'Again',items:'Items',gear:'Settings',back:'Back',m_hist:'Download history',m_tog:'Show history on home',m_lang:'Language',m_theme:'Theme',th_purple:'Purple',th_blackpurple:'Black and purple',th_xmas:'Christmas',m_mobile:'Download on mobile data',e_mobile:"You're on mobile data and downloading with mobile data is turned off. Connect to Wi-Fi or turn it on in the gear menu.",th_black:'Black and white',th_white:'White and black',th_green:'Neon green',th_red:'Neon red',o_title:'Download options',o_list:'Playlist detected: the whole list is downloaded into a folder with its name.',th_t:'Thumbnail',th_sw:'Also save as a separate image',th_note:'The thumbnail always appears inside the audio or video, when the format allows it.',wav_note:"WAV doesn't support embedded cover art.",saving:'Saving…',vq_t:'Video quality',max:'Maximum',vq_note:"If the video doesn't reach that quality, the highest available is downloaded.",af_t:'Audio format',af_note:"Uncompressed format: much larger files, and it doesn't improve the original YouTube audio.",aq_t:'Audio quality',best:'Best',med:'Medium',low:'Low',h_title:'Download history',h_empty:'No downloads yet.',h_clear:'Clear history',h_sure:'Tap again to clear everything',saved_in:'Saved in',dl_get:'Getting info…',preparing:'Preparing…',downloading:'Downloading',converting:'Converting…',song:'Song {a} of {b}',cancel:'Cancel',close:'Close',ok:"Done. It's on your phone.",cancelled:'Download cancelled',bad_link:'Paste a link that starts with https://',updating:'Updating the engine…',e_init_wait:'The engine is still starting. Try again in a few seconds.',e_init_fail:"Couldn't start the engine: ",e_upd_fail:"Couldn't update: ",i_updated:'Engine updated',e_create:"Couldn't create the file",e_unknown:'Unknown error'}
 };
 const $=s=>document.querySelector(s),A=window.Android;
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 function saveHist(){try{while(hist.length>1&&JSON.stringify(hist).length>2000000)hist.pop()}catch(e){}sv('h',hist)}
-let P=Object.assign({type:'audio',vq:'720',af:'mp3',aq:'best',thumb:true,showHist:true,lang:'es',theme:'purple'},ld('p',{}));
+let P=Object.assign({type:'audio',vq:'720',af:'mp3',aq:'best',thumb:true,showHist:true,lang:'es',theme:'purple',mobile:true},ld('p',{}));
 let hist=ld('h',[]);if(!Array.isArray(hist))hist=[];
 let sel={},view='home',busy=false,item=0,total=0,listMode=false,armed=false,engVer='';
 const t=(k,a,b)=>{let s=(T[P.lang]||T.es)[k];if(s===undefined)s=T.es[k]||k;return s.replace('{a}',a).replace('{b}',b)};
@@ -226,7 +235,7 @@ function tm(m){
   return T.es[c]!==undefined?t(c)+(i<0?'':m.slice(i+1)):m;
 }
 // tema: [color de las barras del teléfono, ¿barras oscuras?]. El morado sigue al modo claro/oscuro del teléfono
-const THEMES={purple:null,black:['#000000',true],white:['#FFFFFF',false],green:['#04100A',true],red:['#14060A',true]};
+const THEMES={purple:null,blackpurple:['#000000',true],black:['#000000',true],white:['#FFFFFF',false],green:['#04100A',true],red:['#14060A',true],xmas:['#4A0006',true]};
 function applyTheme(){
   const th=THEMES.hasOwnProperty(P.theme)?P.theme:'purple';
   document.documentElement.dataset.theme=th;
@@ -299,7 +308,7 @@ function drawHist(){
   hist.forEach(h=>l.append(row(h,true)));
   $('#hempty').hidden=hist.length>0;$('#hclear').hidden=!hist.length;
 }
-function syncMenu(){$('#mtog').setAttribute('aria-checked',String(!!P.showHist))}
+function syncMenu(){$('#mtog').setAttribute('aria-checked',String(!!P.showHist));$('#mmob').setAttribute('aria-checked',String(P.mobile!==false))}
 function closeMenu(){$('#menu').hidden=true;$('#gear').setAttribute('aria-expanded','false')}
 function setBusy(v){
   busy=v;$('#upd').disabled=v;
@@ -328,7 +337,7 @@ function endDl(msg,err){
 function launch(url,mode,opts){
   if(busy){show('home');openDl();return}
   item=0;total=0;say('');show('home');setBusy(true);resetDl();openDl();
-  A.start(url,mode,JSON.stringify(Object.assign({},opts,{lang:P.lang})));
+  A.start(url,mode,JSON.stringify(Object.assign({},opts,{lang:P.lang,mobile:P.mobile!==false})));
 }
 function redo(h){launch(h.req.url,h.req.mode,Object.assign({},h.req.opts,{list:!!h.req.list}))}
 function redoItem(h,it){launch(it.u,h.req.mode,Object.assign({},h.req.opts,{list:false,sub:h.pl||'',idx:it.i||0}))}
@@ -390,6 +399,7 @@ function onEvent(e){
 $('#gear').onclick=()=>{const m=$('#menu');m.hidden=!m.hidden;$('#gear').setAttribute('aria-expanded',String(!m.hidden))};
 document.addEventListener('click',e=>{if(!e.target.closest('#menu,#gear'))closeMenu()});
 $('#mhist').onclick=()=>{closeMenu();drawHist();show('hview')};
+$('#mmob').onclick=()=>{P.mobile=!(P.mobile!==false);sv('p',P);syncMenu()};
 $('#mtog').onclick=()=>{P.showHist=!P.showHist;sv('p',P);syncMenu();drawRecent()};
 document.querySelectorAll('.tsw').forEach(b=>b.onclick=()=>{P.theme=b.dataset.th;sv('p',P);applyTheme()});
 try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(!THEMES[P.theme])applyTheme()})}catch(e){}
