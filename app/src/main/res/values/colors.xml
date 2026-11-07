@@ -1,1 +1,9 @@
-<resources><color name="ic_bg">#9647F4</color></resources>
+<resources>
+    <color name="ic_bg">#9647F4</color>
+    <color name="ic_bg_bp">#000000</color>
+    <color name="ic_bg_black">#000000</color>
+    <color name="ic_bg_white">#FFFFFF</color>
+    <color name="ic_bg_green">#2BF56F</color>
+    <color name="ic_bg_red">#FF3D5A</color>
+    <color name="ic_bg_xmas">#570104</color>
+</resources>

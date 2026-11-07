@@ -48,7 +48,18 @@ class MainActivity : Activity() {
         takeShare(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        Bgm.resume(applicationContext)
+    }
+
+    override fun onPause() {
+        Bgm.pause()
+        super.onPause()
+    }
+
     override fun onDestroy() {
+        Bgm.stop()
         if (Zio.ui === this) Zio.ui = null
         (web.parent as? ViewGroup)?.removeView(web)
         web.destroy()
@@ -118,6 +129,10 @@ class MainActivity : Activity() {
         @JavascriptInterface fun start(url: String, mode: String, opts: String) {
             runOnUiThread { askNotifications() }
             Zio.start(url, mode, opts)
+        }
+        @JavascriptInterface fun music(on: Boolean) { runOnUiThread { Bgm.set(applicationContext, on) } }
+        @JavascriptInterface fun icon(theme: String) {
+            try { Icons.set(applicationContext, theme) } catch (e: Exception) { }
         }
         @JavascriptInterface fun cancel() { Zio.cancel() }
         @JavascriptInterface fun bars(bg: String, lightIcons: Boolean) { applyBars(bg, lightIcons) }

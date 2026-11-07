@@ -38,6 +38,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     packaging { jniLibs { useLegacyPackaging = true } }
+    androidResources { noCompress += listOf("mp3") }
 }
 
 kotlin { jvmToolchain(17) }
