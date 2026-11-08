@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.os.IBinder
 
 /** Notificaciones de descarga (progreso y aviso final). */
@@ -29,6 +30,17 @@ object Notif {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     )
 
+    // Botón "Cancelar" dentro de la notificación
+    private fun cancelAction(c: Context): Notification.Action {
+        val pi = PendingIntent.getService(
+            c, 1,
+            Intent(c, DownloadService::class.java).setAction("cancel"),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val icon = Icon.createWithResource(c, android.R.drawable.ic_menu_close_clear_cancel)
+        return Notification.Action.Builder(icon, Zio.cancelLabel, pi).build()
+    }
+
     fun running(c: Context, text: String, pct: Int): Notification {
         channel(c)
         return Notification.Builder(c, CH)
@@ -39,6 +51,7 @@ object Notif {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open(c))
+            .addAction(cancelAction(c))
             .build()
     }
 
@@ -62,6 +75,10 @@ class DownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "cancel") {
+            Zio.cancelRunning()
+            return START_NOT_STICKY
+        }
         startForeground(Notif.RUN, Notif.running(this, "…", -1), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         return START_NOT_STICKY
     }

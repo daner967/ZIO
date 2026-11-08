@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.PowerManager
+import android.os.StatFs
 import android.provider.MediaStore
 import android.system.Os
 import android.util.Base64
@@ -59,6 +60,7 @@ object Zio {
     @Volatile var version = ""
     @Volatile var shared = ""
     @Volatile var ui: MainActivity? = null
+    @Volatile var cancelLabel = "Cancelar"
 
     fun boot(a: Application) {
         if (started) return
@@ -161,7 +163,7 @@ object Zio {
 
     // ------------------------------------------------------------ cola de descargas
     private fun keyOf(u: String, mode: String, o: JSONObject): String {
-        val parts = listOf("vq", "af", "aq", "thumb", "list", "sub", "idx", "items").joinToString("|") { o.optString(it) }
+        val parts = listOf("vq", "af", "aq", "thumb", "list", "sub", "idx", "items", "subs", "from", "to").joinToString("|") { o.optString(it) }
         return Integer.toHexString("$u|$mode|$parts".hashCode())
     }
 
@@ -208,6 +210,14 @@ object Zio {
         }
     }
 
+    // Lo usa el botón "Cancelar" de la notificación
+    fun cancelRunning() {
+        val id = jobs.firstOrNull { it.state == "running" }?.id ?: return
+        cancel(id)
+    }
+
+    fun freeBytes(): Long = try { StatFs(app.cacheDir.path).availableBytes } catch (e: Exception) { Long.MAX_VALUE }
+
     @Synchronized
     fun remove(id: Int) {
         val j = jobs.firstOrNull { it.id == id } ?: return
@@ -238,6 +248,7 @@ object Zio {
     private fun runJob(j: Job, g: Int) {
         if (g != j.gen || j.state != "queued") return
         val en = j.opts.optString("lang") == "en"
+        cancelLabel = if (en) "Cancel" else "Cancelar"
         curId = j.id
         j.state = "running"
         j.msg = ""
@@ -271,35 +282,59 @@ object Zio {
         }
     }
 
-    // ------------------------------------------------------------ elegir elementos de una lista
+    // ------------------------------------------------------------ listas y búsquedas
+    // Pide a yt-dlp solo la lista de elementos (sin descargar nada)
+    private fun flat(u: String): JSONObject {
+        val r = YoutubeDLRequest(u)
+        common(r)
+        r.addOption("--flat-playlist")
+        r.addOption("-J")
+        r.addOption("--no-warnings")
+        return JSONObject(YoutubeDL.getInstance().execute(r).out)
+    }
+
+    private fun entriesOf(root: JSONObject): JSONArray {
+        val entries = root.optJSONArray("entries") ?: JSONArray()
+        val arr = JSONArray()
+        for (k in 0 until entries.length()) {
+            val e = entries.optJSONObject(k) ?: continue
+            val str = { key: String -> if (e.isNull(key)) "" else e.optString(key) }
+            arr.put(
+                JSONObject().put("i", k + 1).put("id", str("id")).put("t", str("title"))
+                    .put("c", str("channel").ifEmpty { str("uploader") })
+                    .put("d", e.optInt("duration", 0))
+            )
+        }
+        return arr
+    }
+
+    // Elegir elementos de una lista
     fun listInfo(url: String, rid: Int) {
         val u = url.trim()
         if (!u.startsWith("https://") && !u.startsWith("http://")) { emit("list_err", "bad_link"); return }
         infoPool.execute {
             try {
                 if (!ready) { emit("list_err", "e_init_wait"); return@execute }
-                val r = YoutubeDLRequest(u)
-                common(r)
-                r.addOption("--flat-playlist")
-                r.addOption("-J")
-                r.addOption("--no-warnings")
-                val out = YoutubeDL.getInstance().execute(r).out
-                val root = JSONObject(out)
-                val entries = root.optJSONArray("entries") ?: JSONArray()
-                val arr = JSONArray()
-                for (k in 0 until entries.length()) {
-                    val e = entries.optJSONObject(k) ?: continue
-                    val str = { key: String -> if (e.isNull(key)) "" else e.optString(key) }
-                    arr.put(
-                        JSONObject().put("i", k + 1).put("id", str("id")).put("t", str("title"))
-                            .put("c", str("channel").ifEmpty { str("uploader") })
-                            .put("d", e.optInt("duration", 0))
-                    )
-                }
+                val root = flat(u)
                 val title = if (root.isNull("title")) "" else root.optString("title")
-                emit("list", x = JSONObject().put("rid", rid).put("title", title).put("items", arr))
+                emit("list", x = JSONObject().put("rid", rid).put("title", title).put("items", entriesOf(root)))
             } catch (e: Exception) {
                 emit("list_err", friendly(e.message))
+            }
+        }
+    }
+
+    // Buscar por nombre (sin pegar el enlace)
+    fun search(q: String, rid: Int) {
+        val query = q.trim().take(120)
+        if (query.isEmpty()) { emit("search_err", "e_url"); return }
+        infoPool.execute {
+            try {
+                if (!ready) { emit("search_err", "e_init_wait"); return@execute }
+                val root = flat("ytsearch12:$query")
+                emit("search", x = JSONObject().put("rid", rid).put("items", entriesOf(root)))
+            } catch (e: Exception) {
+                emit("search_err", friendly(e.message))
             }
         }
     }
@@ -349,6 +384,7 @@ object Zio {
             if (!ready) return "e_init_wait"
             val mobileOk = o.optBoolean("mobile", true) // false = solo Wi-Fi
             if (!mobileOk && onMobile()) return "e_mobile"
+            if (freeBytes() < 150L * 1024 * 1024) return "e_space"
             work.mkdirs()
             ui?.keepOn(true)
             try {
@@ -382,6 +418,13 @@ object Zio {
             if (sub.isNotEmpty()) saveOpts.put("sub", sub)
             if (idx > 0) saveOpts.put("idx", idx)
             if (pick.isNotEmpty()) saveOpts.put("items", pick)
+            val subs = o.optString("subs").takeIf { it in setOf("es", "en", "es,en") } ?: ""
+            val tre = Regex("^\\d{1,3}(:[0-5]?\\d){0,2}$")
+            val from = o.optString("from").trim().takeIf { !isList && tre.matches(it) } ?: ""
+            val to = o.optString("to").trim().takeIf { !isList && tre.matches(it) } ?: ""
+            if (subs.isNotEmpty()) saveOpts.put("subs", subs)
+            if (from.isNotEmpty()) saveOpts.put("from", from)
+            if (to.isNotEmpty()) saveOpts.put("to", to)
             val req = JSONObject().put("url", url).put("mode", mode).put("list", isList).put("opts", saveOpts)
 
             val r = YoutubeDLRequest(url)
@@ -395,6 +438,15 @@ object Zio {
             r.addOption("--convert-thumbnails", "jpg")
             if (thumb) r.addOption("--write-thumbnail")                // imagen aparte
             if (video || af != "wav") r.addOption("--embed-thumbnail") // portada dentro del archivo
+            if (subs.isNotEmpty()) {
+                r.addOption("--write-subs")
+                r.addOption("--write-auto-subs")
+                r.addOption("--sub-langs", subs.split(",").joinToString(",") { "$it.*" })
+                r.addOption("--convert-subs", "srt")
+            }
+            if (from.isNotEmpty() || to.isNotEmpty()) {
+                r.addOption("--download-sections", "*${from.ifEmpty { "0" }}-${to.ifEmpty { "inf" }}")
+            }
             if (isList) {
                 r.addOption("--yes-playlist")
                 r.addOption("--ignore-errors")
@@ -419,7 +471,8 @@ object Zio {
             }
 
             // Todo va a Download/ZIO, con audios y videos en subcarpetas separadas
-            val folder = if (video) "Download/ZIO/Videos" else "Download/ZIO/Audios"
+            val base = o.optString("folder").replace(Regex("[\\\\/:*?\"<>|]"), "_").replace("..", "_").trim().take(40).ifEmpty { "ZIO" }
+            val folder = "Download/$base/" + (if (video) "Videos" else "Audios")
             val saveDir = if (sub.isNotEmpty()) "$folder/$sub" else folder
             val items = JSONArray()
             val sent = HashSet<String>()
@@ -441,7 +494,8 @@ object Zio {
                     val ext = f.extension.lowercase()
                     val isMedia = ext in MEDIA
                     val isImg = ext in IMG
-                    if (!isMedia && !(isImg && thumb)) { if (isImg) f.delete(); continue }
+                    val isSub = ext == "srt"
+                    if (!isMedia && !(isImg && thumb) && !(isSub && subs.isNotEmpty())) { if (isImg || isSub) f.delete(); continue }
                     if (isMedia) emit("progress", "[saving]", 100f)
                     val uri = save(f, mimeOf(f), dest)
                     if (isMedia) {
@@ -517,12 +571,15 @@ object Zio {
                 val all = work.walkTopDown().filter { it.isFile }.sortedBy { it.name }.toList()
                 val files = all.filter { it.extension.lowercase() in MEDIA && !TMP.containsMatchIn(it.name) }
                 val thumbs = if (thumb) all.filter { it.extension.lowercase() in IMG } else emptyList()
+                val subFiles = if (subs.isNotEmpty()) all.filter { it.extension.lowercase() == "srt" } else emptyList()
                 if (files.isEmpty()) return friendly(err)
                 val f = files.first()
                 val uri = save(f, mimeOf(f), saveDir)
                 thumbs.forEach { save(it, mimeOf(it), saveDir) }
+                subFiles.forEach { save(it, mimeOf(it), saveDir) }
                 val info = readItem(File(f.parentFile, f.nameWithoutExtension + ".info.json"))
-                val extra = if (thumbs.isEmpty()) "" else (if (en) " + thumbnail" else " + miniatura")
+                val extra = (if (thumbs.isEmpty()) "" else (if (en) " + thumbnail" else " + miniatura")) +
+                    (if (subFiles.isEmpty()) "" else (if (en) " + subtitles" else " + subtítulos"))
                 val n = f.name + extra + noCover
                 val x = JSONObject().put("req", req).put("ch", info?.optString("c") ?: "").put("v", uri).put("m", mimeOf(f))
                 emit("done", saveDir, n = n, x = x)
@@ -592,6 +649,7 @@ object Zio {
         "jpg", "jpeg" -> "image/jpeg"
         "png" -> "image/png"
         "webp" -> "image/webp"
+        "srt" -> "application/x-subrip"
         else -> "application/octet-stream"
     }
 

@@ -56,6 +56,12 @@ class MainActivity : Activity() {
         Bgm.resume(applicationContext)
     }
 
+    // Al volver a la app se revisa si hay un enlace copiado
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) js("window.onAppFocus&&onAppFocus()")
+    }
+
     override fun onPause() {
         Bgm.pause()
         super.onPause()
@@ -160,6 +166,14 @@ class MainActivity : Activity() {
             return Zio.start(url, mode, opts)
         }
         @JavascriptInterface fun retry(id: Int) { Zio.retry(id) }
+        @JavascriptInterface fun search(q: String, rid: Int) { Zio.search(q, rid) }
+        @JavascriptInterface fun free(): Double = Zio.freeBytes().toDouble()
+        // Hora en que se copió lo último: así solo se lee el portapapeles cuando hay algo nuevo
+        @JavascriptInterface fun clipTs(): Double {
+            val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+            val d = cm.primaryClipDescription ?: return 0.0
+            return if (d.hasMimeType("text/*")) d.timestamp.toDouble() else 0.0
+        }
         @JavascriptInterface fun remove(id: Int) { Zio.remove(id) }
         @JavascriptInterface fun listInfo(url: String, rid: Int) { Zio.listInfo(url, rid) }
         @JavascriptInterface fun open(uri: String, mime: String) { runOnUiThread { openFile(uri, mime, false) } }
