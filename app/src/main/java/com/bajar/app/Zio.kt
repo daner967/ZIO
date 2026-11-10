@@ -443,6 +443,10 @@ object Zio {
                 r.addOption("--write-auto-subs")
                 r.addOption("--sub-langs", subs.split(",").joinToString(",") { "$it.*" })
                 r.addOption("--convert-subs", "srt")
+                // YouTube limita seguido los subtítulos (error 429): se espera entre pedidos y, si fallan,
+                // el audio o video se baja igual en vez de cancelarse todo
+                r.addOption("--sleep-subtitles", "2")
+                r.addOption("--ignore-errors")
             }
             if (from.isNotEmpty() || to.isNotEmpty()) {
                 r.addOption("--download-sections", "*${from.ifEmpty { "0" }}-${to.ifEmpty { "inf" }}")
@@ -557,13 +561,15 @@ object Zio {
 
             val coverFail = err?.let { it.contains("thumbnail", true) || it.contains("mutagen", true) || it.contains("embed", true) } == true
             val noCover = if (coverFail) (if (en) " · cover not embedded" else " · portada no incrustada") else ""
+            val subsFail = subs.isNotEmpty() && err?.contains("subtitles", true) == true
+            val noSubs = if (subsFail) (if (en) " · some subtitles failed (YouTube limited requests)" else " · algunos subtítulos no se pudieron bajar (YouTube limitó las solicitudes)") else ""
 
             if (isList) {
                 flush(null)
                 if (savedCount == 0) return friendly(err)
                 val what = if (video) "videos" else (if (en) "songs" else "canciones")
                 val failed = if (totalItems > savedCount) (if (en) ", ${totalItems - savedCount} failed" else ", ${totalItems - savedCount} fallaron") else ""
-                val n = "$playlistName ($savedCount $what$failed)$noCover"
+                val n = "$playlistName ($savedCount $what$failed)$noCover$noSubs"
                 val x = JSONObject().put("req", req).put("pl", playlistName).put("items", items)
                 emit("done", "$folder/$playlistName", n = n, x = x)
                 notifyEnd((if (en) "Done: " else "Listo: ") + n)
@@ -580,7 +586,7 @@ object Zio {
                 val info = readItem(File(f.parentFile, f.nameWithoutExtension + ".info.json"))
                 val extra = (if (thumbs.isEmpty()) "" else (if (en) " + thumbnail" else " + miniatura")) +
                     (if (subFiles.isEmpty()) "" else (if (en) " + subtitles" else " + subtítulos"))
-                val n = f.name + extra + noCover
+                val n = f.name + extra + noCover + noSubs
                 val x = JSONObject().put("req", req).put("ch", info?.optString("c") ?: "").put("v", uri).put("m", mimeOf(f))
                 emit("done", saveDir, n = n, x = x)
                 notifyEnd((if (en) "Done: " else "Listo: ") + n)
